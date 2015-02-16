@@ -10,6 +10,8 @@ public class GameManagerScript : MonoBehaviour {
 	List<GameObject> asteroids;
 	List<GameObject> enemies;
 
+	public static float creationRadius;
+
 	int numObstacles = 400;
 	//int numObstacles = 0;
 	int numEnemies = 50;
@@ -26,6 +28,8 @@ public class GameManagerScript : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
+
+		creationRadius = 800.0f;
 
 		/*
 		boidCam = (Camera) Instantiate(GameObject.FindGameObjectWithTag("MainCamera").camera,
@@ -49,7 +53,7 @@ public class GameManagerScript : MonoBehaviour {
 			f3 = Random.Range(-10, 10);
 			Vector3 createPt = new Vector3(f1, f2, f3);
 			createPt.Normalize();
-			createPt *= Random.Range(30, 90);
+			createPt *= Random.Range(60, 120);
 			//spawnPos += Vector3.right * i * 30;
 			spawnPos += createPt;
 			spawnEnemyAt (spawnPos);
@@ -118,10 +122,21 @@ public class GameManagerScript : MonoBehaviour {
 			}
 		}
 
-
+		/*
 		for (int i = 0; i < enemies.Count; i++) {
 			Debug.DrawLine(Player.transform.position, enemies[i].transform.position, Color.red);
 		}
+		*/
+
+		/*
+		foreach (GameObject enemy in enemies) {
+			EnemyScript currentEnemy = enemy.GetComponent<EnemyScript>();
+			if (currentEnemy.state != EnemyScript.WANDER) {
+				Debug.DrawLine(enemy.transform.position, currentEnemy.playerPosEstimate, Color.green);
+				Debug.DrawRay(enemy.transform.position, currentEnemy.alignmentVec, Color.red);
+			}
+		}
+		*/
 
 	}
 
@@ -131,10 +146,10 @@ public class GameManagerScript : MonoBehaviour {
 		enemies.Add (enemy);
 		enemy.GetComponent<EnemyScript> ().enabled = false;
 		enemy.renderer.material.color = Color.green;
+		enemy.GetComponent<EnemyScript> ().gameManger = gameObject;
 	}
 
 	void createAsteroids() {
-		float creationRadius = 800.0f;
 		for (int i = 0; i < numObstacles; i++) {
 			GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
 			float f1, f2, f3;

@@ -19,7 +19,8 @@ public class PlayerScript : MonoBehaviour {
 	public float sidewaysSpeed;
 
 	float boostCharge = 100.0f;
-	float boostDecrement = 30.0f;
+	//float boostDecrement = 20.0f;
+	float boostDecrement = 0.0f;
 	float boostIncrement;
 
 	public float mouseX_AxisSensitivity;
@@ -49,13 +50,13 @@ public class PlayerScript : MonoBehaviour {
 		dampenRigidbodyForces ();
 		//Debug.Log ("mouse look cam is at " + mouseLookCam.transform.position);
 
-		if (Input.GetMouseButtonDown (2)) {
+		if (Input.GetMouseButtonDown (2) || Input.GetKeyDown (KeyCode.F)) {
 			mainCam.enabled = false;
 			mainCam.GetComponent<AudioListener>().enabled = false;
 			mouseLookCam.enabled = true;
 			mouseLookCam.GetComponent<AudioListener>().enabled = true;
 		}
-		else if (Input.GetMouseButtonUp (2)) {
+		else if (Input.GetMouseButtonUp (2) || Input.GetKeyUp (KeyCode.F)) {
 			mainCam.enabled = true;
 			mainCam.GetComponent<AudioListener>().enabled = true;
 			mouseLookCam.enabled = false;
@@ -77,6 +78,17 @@ public class PlayerScript : MonoBehaviour {
 			mouseLookX_Rotation += Time.deltaTime * deltaMouseY * mouseLookSensitivity;
 			mouseLookCam.transform.RotateAround(transform.position, transform.right, mouseLookX_Rotation);
 			mouseLookCam.transform.RotateAround(transform.position, transform.up, mouseLookY_Rotation);
+		}
+		else if (Input.GetKey (KeyCode.F)) {
+			Vector3 nearestEnemyPos = getNearestEnemyPos();
+			//Debug.DrawLine(transform.position, nearestEnemyPos, Color.cyan);
+			Vector3 vecToEnemy = nearestEnemyPos - transform.position;
+			if (vecToEnemy != Vector3.zero) {
+				mouseLookCam.transform.position = transform.position - vecToEnemy.normalized * Vector3.Distance(transform.position, mainCam.transform.position);
+				mouseLookCam.transform.LookAt(nearestEnemyPos);
+			}
+			else
+				resetMouseLookCamPosition();
 		}
 		// movement stuff
 		if((deltaMouseX != 0 || deltaMouseY != 0) && !Input.GetMouseButton(2)){
@@ -126,7 +138,7 @@ public class PlayerScript : MonoBehaviour {
 		if (boostCharge > 100.0f)
 			boostCharge = 100.0f;
 
-		Debug.Log ("boost is at " + boostCharge + ", hitpoints at " + hitpoints);
+		//Debug.Log ("boost is at " + boostCharge + ", hitpoints at " + hitpoints);
 
 		checkDead ();
 
@@ -150,6 +162,23 @@ public class PlayerScript : MonoBehaviour {
 		}
 	}
 
+	Vector3 getNearestEnemyPos() {
+		Collider[] cols = Physics.OverlapSphere(transform.position, 150);
+		Vector3 nearest = transform.position;
+		if (cols.Length <= 0)
+			return nearest;
+		nearest = cols [0].gameObject.transform.position;
+		float distToNearest = Vector3.Distance (transform.position, nearest);
+		foreach (Collider col in cols) {
+			float distToCurrent = Vector3.Distance(transform.position, col.gameObject.transform.position);
+			if (col.gameObject.tag == "Enemy" && distToCurrent < distToNearest) {
+				nearest = col.gameObject.transform.position;
+				distToNearest = distToCurrent;
+			}
+		}
+		return nearest;
+	}
+
 	void OnCollisionEnter(Collision collision) {
 		if (nocollide)
 			return;
@@ -167,9 +196,11 @@ public class PlayerScript : MonoBehaviour {
 	void endGame() {
 		Destroy (gameObject);
 		Application.Quit();
+		/*
 		if ((Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.OSXEditor)
 		    && UnityEditor.EditorApplication.isPlaying == true) {
 			UnityEditor.EditorApplication.isPlaying = false;
 		}
+		*/
 	}
 }

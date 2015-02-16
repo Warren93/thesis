@@ -1,10 +1,10 @@
 ﻿<Properties>
-  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="Assets/PlayerScript.cs">
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" PreferredExecutionTarget="MonoDevelop.Default" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets/EnemyScript.cs">
     <Files>
-      <File FileName="Assets/PlayerScript.cs" Line="23" Column="23" />
-      <File FileName="Assets/GameManagerScript.cs" Line="133" Column="47" />
-      <File FileName="Assets/EnemyScript.cs" Line="307" Column="80" />
+      <File FileName="Assets/PlayerScript.cs" Line="67" Column="28" />
+      <File FileName="Assets/GameManagerScript.cs" Line="135" Column="15" />
+      <File FileName="Assets/EnemyScript.cs" Line="254" Column="3" />
     </Files>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.DebuggingService.Breakpoints>
