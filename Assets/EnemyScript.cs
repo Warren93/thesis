@@ -32,9 +32,14 @@ public class EnemyScript : MonoBehaviour {
 	float closeInDist;
 
 	float defaultCohesionRangeMult = 10;
-	float longCohesionRangeMult = 40;
+	//float defaultCohesionRangeMult = 6;
+	//float longCohesionRangeMult = 40;
+	//float longCohesionRangeMult = 60;
+	float longCohesionRangeMult = 30;
 
 	List<GameObject> neighbors;
+	List<GameObject> closeNeighbors;
+	float neighborRefreshRate = 0.1f; // frequency in seconds at which neighboring NPCs are detected
 
 	/*
 	float obstacleAvoidanceWeight = 1.5f; // for obstacles
@@ -43,10 +48,11 @@ public class EnemyScript : MonoBehaviour {
 	float alignmentWeight = 2.0f;
 	*/
 
-	float defaultObstacleAvoidanceWeight = 4.5f;
-	float defaultAgentAvoidanceWeight = 7.5f;
-	float defaultCohesionWeight = 0.7f;
-	float defaultAlignmentWeight = 2.0f;
+	float defaultObstacleAvoidanceWeight = 20f;
+	//float defaultAgentAvoidanceWeight = 7.5f;
+	float defaultAgentAvoidanceWeight = 1.5f;
+	float defaultCohesionWeight = 6.0f;
+	float defaultAlignmentWeight = 4.0f;
 	float defaultDestinationWeight = 1f;
 
 	float obstacleAvoidanceWeight;
@@ -64,6 +70,7 @@ public class EnemyScript : MonoBehaviour {
 	public Vector3 playerPosEstimate; // estimate of where the player currently is (useful if player not in sight)
 
 	bool omniscient;
+	bool playerInvisible;
 	GameObject player;
 
 	public Vector3 obstacleVec;
@@ -74,21 +81,26 @@ public class EnemyScript : MonoBehaviour {
 	// Use this for initialization
 	void Start () {
 
+		//GetComponent<SphereCollider> ().enabled = false;
+		//GetComponent<CapsuleCollider> ().enabled = false;
+
 		setDefaultWeights ();
 
 		obstacleVec = agentVec = cohesionVec = alignmentVec = Vector3.zero;
 
 		neighbors = new List<GameObject> ();
+		closeNeighbors = new List<GameObject> ();
 
 		direction = Vector3.forward;
 		destination = Vector3.forward * 1000;
 
 		player = GameObject.FindGameObjectWithTag ("Player");
 		omniscient = false;
+		playerInvisible = false;
 
 		obstacleAvoidanceRange = transform.localScale.magnitude * 1.5f;
 		//avoidanceRange = gameObject.GetComponent<SphereCollider>().bounds.extents.magnitude * 3;
-		agentAvoidanceRange = obstacleAvoidanceRange * 2;
+		agentAvoidanceRange = obstacleAvoidanceRange * 0.7f;
 		//closeInDist = obstacleAvoidanceRange * 8;
 		closeInDist = 15;
 		//closeInDist = 50;
@@ -103,6 +115,7 @@ public class EnemyScript : MonoBehaviour {
 		changeColorBasedOnState ();
 		playerInSight = false;
 		InvokeRepeating ("changeDestination", 5, 5);
+		InvokeRepeating ("getNeighbors", Random.Range(0, neighborRefreshRate), neighborRefreshRate);
 	}
 	
 	// Update is called once per frame
@@ -112,14 +125,16 @@ public class EnemyScript : MonoBehaviour {
 		maxSpeed = defaultSpeed * 1.1f;
 
 		// FIND PACK (or flock, to use the boid terminology)
-		neighbors.Clear ();
-		getNeighbors (); // form flock from other nearby boids
+		//neighbors.Clear ();
+		//getNeighbors (); // form flock from other nearby boids
 
 		// IF LONE WOLF, EXPAND COHESION RANGE TO TRY TO FIND/FORM A PACK
 		if (neighbors.Count <= 0)
 			setCohesionRangeLong ();
-		else if (neighbors.Count > 8)
-			cohesionRange = cohesionRange * 0.5f;
+		else if (neighbors.Count < 7) {
+			setCohesionRangeShort();
+			cohesionRange = cohesionRange * 1.3f;
+		}
 		else
 			setCohesionRangeShort();
 
@@ -127,8 +142,8 @@ public class EnemyScript : MonoBehaviour {
 		dampenRigidbodyForces ();
 		//Debug.Log ("state is " + state);
 
-		// IF PLAYER PRESSES 'O' SET NPCs OMNISCIENT (automatically know where player is) FOR DEBUGGING
-		if (Input.GetKey (KeyCode.O)) {
+		// TOGGLE NPC OMNISCIENCE (automatically know where player is) for debugging
+		if (Input.GetKeyUp (KeyCode.O)) {
 			if (omniscient == true) {
 				omniscient = false;
 				//Debug.Log("NPCs non-omniscient");
@@ -137,6 +152,14 @@ public class EnemyScript : MonoBehaviour {
 				omniscient = true;
 				//Debug.Log("NPCs omniscient");
 			}
+		}
+
+		// TOGGLE PLAYER INVISIBILITY (also for debugging purposes)
+		if (Input.GetKeyUp (KeyCode.I)) {
+			if (playerInvisible == true)
+				playerInvisible = false;
+			else
+				playerInvisible = true;
 		}
 
 		// CHECK IF PLAYER IN SIGHT
@@ -148,6 +171,7 @@ public class EnemyScript : MonoBehaviour {
 		// BEGIN SEARCHING IF PLAYER DISAPPEARED WHILE STATE WAS 'PURSUE'
 		else if (!playerInSight && state == PURSUE)
 			changeStateTo(SEARCH);
+			
 
 		// UPDATE ESTIMATE OF WHERE PLAYER IS
 		updatePlayerPosEstimate ();
@@ -182,18 +206,18 @@ public class EnemyScript : MonoBehaviour {
 		agentVec = agentCheck ();
 		cohesionVec = getCohesionVec ();
 		alignmentVec = getAlignmentVec ();
-
 		newDirection += obstacleVec;
 		newDirection += agentVec;
 		newDirection += cohesionVec;
 		newDirection += alignmentVec;
-
+		/*
 		if (state == SEARCH) {
 			Debug.DrawLine(transform.position, playerPosEstimate, Color.red);
 			Debug.Log ("alignment vec is " + getAlignmentVec () + ", cohesion vec is " + getCohesionVec ()
 			           + ", agent avoid vec is " + agentVec +
 		           		", headed for destination " + destination + " and player is at " + player.transform.position);
 		}
+		*/
 
 		newDirection.Normalize ();
 
@@ -227,6 +251,14 @@ public class EnemyScript : MonoBehaviour {
 		if (state == newState)
 			return;
 
+		// DEBUG
+		/*
+		if (newState == SEARCH) {
+			state = WANDER;
+			return;
+		}
+		*/
+
 		if (state == SEARCH && newState != SEARCH) {
 			CancelInvoke("finishSearching");
 			setDefaultWeights();
@@ -246,8 +278,9 @@ public class EnemyScript : MonoBehaviour {
 	}
 
 	void spreadOut() {
-		agentAvoidanceRange = 5000;
-		agentAvoidanceWeight = 100;
+		//agentAvoidanceRange = defaultAgentAvoidanceWeight * 2;
+		agentAvoidanceRange = cohesionRange * 0.5f;
+		agentAvoidanceWeight *= 3;
 		cohesionWeight = 0.0f;
 		alignmentWeight = 0.0f;
 		destinationWeight = 100;
@@ -278,6 +311,10 @@ public class EnemyScript : MonoBehaviour {
 	}
 
 	void visionCheck() {
+		if (playerInvisible) {
+			playerInSight = false;
+			return;
+		}
 		if (omniscient) {
 			if (state == WANDER)
 				CancelInvoke("changeDestination");
@@ -344,33 +381,53 @@ public class EnemyScript : MonoBehaviour {
 				float range = vecFromObj.magnitude;
 				vecFromObj.Normalize();
 				//avoidanceVec += vecFromObj * obstacleAvoidanceWeight * (1 / Mathf.Pow(range, 2));
-				avoidanceVec += vecFromObj * obstacleAvoidanceWeight * (1 / range);
+				avoidanceVec += vecFromObj * (1 / range);
 			}
 		}
-		return avoidanceVec;
+		return avoidanceVec * obstacleAvoidanceWeight;
 	}
 
+	/*
 	Vector3 agentCheck() {
 		// check for other agents and return vector away from them
 		Collider[] cols = Physics.OverlapSphere(transform.position, agentAvoidanceRange);
 		Vector3 avoidanceVec = Vector3.zero;
 		foreach (Collider col in cols) {
-			if (col.gameObject.tag == "Obstacle") {
+			if (col.gameObject != gameObject && col.gameObject.tag == "Enemy") {
 				Vector3 vecFromObj = transform.position - col.gameObject.transform.position;
 				float range = vecFromObj.magnitude;
 				vecFromObj.Normalize();
 				//avoidanceVec += vecFromObj * agentAvoidanceWeight * (1 / Mathf.Pow(range, 2));
-				avoidanceVec += vecFromObj * agentAvoidanceWeight * (1 / range);
+				avoidanceVec += vecFromObj * (1 / range);
 			}
 		}
-		return avoidanceVec;
+		return avoidanceVec * agentAvoidanceWeight;
+	}
+	*/
+	
+	Vector3 agentCheck() {
+		Vector3 avoidanceVec = Vector3.zero;
+		foreach (GameObject enemy in closeNeighbors) {
+			if (enemy != gameObject) {
+				Vector3 vecFromObj = transform.position - enemy.transform.position;
+				float range = vecFromObj.magnitude;
+				vecFromObj.Normalize();
+				//avoidanceVec += vecFromObj * agentAvoidanceWeight * (1 / Mathf.Pow(range, 2));
+				avoidanceVec += vecFromObj * (1 / range);
+			}
+		}
+		return avoidanceVec * agentAvoidanceWeight;
 	}
 
 	void getNeighbors() {
+		neighbors.Clear ();
+		closeNeighbors.Clear ();
 		Collider[] cols = Physics.OverlapSphere(transform.position, cohesionRange);
 		foreach (Collider col in cols) {
 			if (col.gameObject.tag == "Enemy" && col.gameObject != gameObject) {
 				neighbors.Add(col.gameObject);
+				if (Vector3.Distance(transform.position, col.gameObject.transform.position) < agentAvoidanceRange)
+					closeNeighbors.Add(col.gameObject);
 			}
 		}
 	}
@@ -391,25 +448,6 @@ public class EnemyScript : MonoBehaviour {
 		Vector3 vecToLocalCent = localCentroid - transform.position;
 		return vecToLocalCent * cohesionWeight * multiplier;
 	}
-
-	/*
-	Vector3 getAlignmentVec () {
-		float multiplier = 1;
-		if (state == PURSUE || state == SEARCH)
-			multiplier = 0.1f;
-		// get average destination of flock
-		Vector3 avgDest = destination;
-		float flockSize = neighbors.Count + 1;
-		foreach (GameObject obj in neighbors) {
-			EnemyScript currentObj = obj.GetComponent<EnemyScript>();
-			avgDest += currentObj.destination;
-		}
-		avgDest /= flockSize;
-		// get vector to average destination
-		Vector3 vecToAvgDest = avgDest - transform.position;
-		return vecToAvgDest.normalized * alignmentWeight * multiplier;
-	}
-	*/
 
 	Vector3 getAlignmentVec () {
 		float multiplier = 1;

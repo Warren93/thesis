@@ -5,7 +5,7 @@ using System.Collections.Generic;
 public class GameManagerScript : MonoBehaviour {
 
 	public GameObject Enemy;
-	GameObject Player;
+	//GameObject Player;
 
 	List<GameObject> asteroids;
 	List<GameObject> enemies;
@@ -17,8 +17,8 @@ public class GameManagerScript : MonoBehaviour {
 	int numEnemies = 50;
 
 	float globalLowerBound = 2;
-	float globalUpperBound = 15;
-	float globalBoundRatio = 0.6f;
+	float globalUpperBound = 35;
+	float globalBoundRatio = 0.75f;
 
 	/*
 	float boidCamDist = 0;
@@ -28,6 +28,8 @@ public class GameManagerScript : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
+
+		QualitySettings.antiAliasing = 4;
 
 		creationRadius = 800.0f;
 
@@ -41,7 +43,7 @@ public class GameManagerScript : MonoBehaviour {
 
 		asteroids = new List<GameObject> ();
 		enemies = new List<GameObject>();
-		Player = GameObject.FindGameObjectWithTag ("Player");
+		//Player = GameObject.FindGameObjectWithTag ("Player");
 
 		// create enemy
 		for (int i = 0; i < numEnemies; i++) {
@@ -68,7 +70,7 @@ public class GameManagerScript : MonoBehaviour {
 	// Update is called once per frame
 	void Update () {
 
-		if (Input.GetKey(KeyCode.V)) {
+		if (Input.GetKeyUp(KeyCode.V)) {
 			foreach (GameObject enemy in enemies) {
 				EnemyScript currentEnemy = enemy.GetComponent<EnemyScript>();
 				if (currentEnemy.enabled == false)
@@ -113,7 +115,7 @@ public class GameManagerScript : MonoBehaviour {
 		*/
 
 		// toggle asteroids on/off with M key
-		if (Input.GetKey (KeyCode.M)) {
+		if (Input.GetKeyUp (KeyCode.M)) {
 			foreach (GameObject obj in asteroids) {
 				if (obj.activeSelf == true)
 					obj.SetActive(false);
@@ -162,7 +164,8 @@ public class GameManagerScript : MonoBehaviour {
 			sphere.transform.position = createPt;
 			sphere.isStatic = true;
 			sphere.tag = "Obstacle";
-			
+			//sphere.renderer.sharedMaterial = 
+
 			float upperBound = Random.Range(globalLowerBound, globalUpperBound);
 			float lowerBound = upperBound * globalBoundRatio;
 			

@@ -4,6 +4,7 @@ using System.Collections;
 public class PlayerScript : MonoBehaviour {
 
 	bool nocollide = false;
+	bool invincible = true;
 	float hitpoints = 100.0f;
 
 	Vector3 prevDirection;
@@ -184,7 +185,8 @@ public class PlayerScript : MonoBehaviour {
 			return;
 		//Debug.Log ("in collsion function");
 		if (collision.collider.tag == "Obstacle" || collision.collider.tag == "Enemy") {
-			hitpoints -= 20.0f;
+			if (!invincible)
+				hitpoints -= 20.0f;
 		}
 	}
 
