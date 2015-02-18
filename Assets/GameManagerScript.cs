@@ -5,19 +5,25 @@ using System.Collections.Generic;
 public class GameManagerScript : MonoBehaviour {
 
 	public GameObject Enemy;
-	//GameObject Player;
+	GameObject Player;
 
 	List<GameObject> asteroids;
 	List<GameObject> enemies;
 
-	public static float creationRadius;
+	Rect infoBarRect;
+	Rect warningRect;
 
-	int numObstacles = 400;
+	public static float creationRadius;
+	public static float mapRadius;
+	public static float warnRadius;
+
+	int numObstacles = 800;
+	//int numObstacles = 400;
 	//int numObstacles = 0;
 	int numEnemies = 50;
 
 	float globalLowerBound = 2;
-	float globalUpperBound = 35;
+	float globalUpperBound = 55; // prev 35
 	float globalBoundRatio = 0.75f;
 
 	/*
@@ -31,7 +37,14 @@ public class GameManagerScript : MonoBehaviour {
 
 		QualitySettings.antiAliasing = 4;
 
+		infoBarRect = new Rect (10, 10, Screen.width * 0.2f, 20);
+		warningRect = new Rect (0, 0, Screen.width * 0.2f, 45);
+		warningRect.center = new Vector2 (Screen.width * 0.5f, Screen.height * 0.5f);
+
 		creationRadius = 800.0f;
+		mapRadius = creationRadius * 0.9f;
+		warnRadius = mapRadius - 80;
+
 
 		/*
 		boidCam = (Camera) Instantiate(GameObject.FindGameObjectWithTag("MainCamera").camera,
@@ -43,20 +56,25 @@ public class GameManagerScript : MonoBehaviour {
 
 		asteroids = new List<GameObject> ();
 		enemies = new List<GameObject>();
-		//Player = GameObject.FindGameObjectWithTag ("Player");
+		Player = GameObject.FindGameObjectWithTag ("Player");
 
 		// create enemy
 		for (int i = 0; i < numEnemies; i++) {
 			//Vector3 spawnPos = Vector3.zero + Vector3.back * 70;
 			Vector3 spawnPos = Vector3.back * 200;
 			float f1, f2, f3;
+			/*
 			f1 = Random.Range(-10, 10);
 			f2 = Random.Range(-10, 10);
 			f3 = Random.Range(-10, 10);
 			Vector3 createPt = new Vector3(f1, f2, f3);
 			createPt.Normalize();
 			createPt *= Random.Range(60, 120);
-			//spawnPos += Vector3.right * i * 30;
+			*/
+			f1 = Random.Range(-120, 120);
+			f2 = Random.Range(-120, 120);
+			f3 = Random.Range(-120, 120);
+			Vector3 createPt = new Vector3(f1, f2, f3);
 			spawnPos += createPt;
 			spawnEnemyAt (spawnPos);
 		}
@@ -69,6 +87,12 @@ public class GameManagerScript : MonoBehaviour {
 	
 	// Update is called once per frame
 	void Update () {
+
+		// damage player if they get too far from the center of the game world
+		if (Player && Vector3.Distance(Vector3.zero, Player.transform.position) > mapRadius) {
+			PlayerScript playerInfo = Player.GetComponent<PlayerScript> ();
+			playerInfo.hitpoints -= 60 * Time.deltaTime;
+		}
 
 		if (Input.GetKeyUp(KeyCode.V)) {
 			foreach (GameObject enemy in enemies) {
@@ -142,6 +166,17 @@ public class GameManagerScript : MonoBehaviour {
 
 	}
 
+	void OnGUI() {
+		if (Player) {
+			PlayerScript playerInfo = Player.GetComponent<PlayerScript> ();
+			GUI.Box(infoBarRect,
+			        "Boost: " + (int)playerInfo.boostCharge + "   Health: " + (int)playerInfo.hitpoints);
+			if (Vector3.Distance(Vector3.zero, Player.transform.position) > warnRadius) {
+				GUI.Box(warningRect, "Approaching edge of game area\nTurn back or you will take damage");
+			}
+		}
+	}
+
 	void spawnEnemyAt(Vector3 position) {
 		GameObject enemy = (GameObject) Instantiate (Enemy);
 		enemy.transform.position = position;
@@ -155,12 +190,18 @@ public class GameManagerScript : MonoBehaviour {
 		for (int i = 0; i < numObstacles; i++) {
 			GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
 			float f1, f2, f3;
+			/*
 			f1 = Random.Range(-10, 10);
 			f2 = Random.Range(-10, 10);
 			f3 = Random.Range(-10, 10);
 			Vector3 createPt = new Vector3(f1, f2, f3);
 			createPt.Normalize();
 			createPt *= Random.Range(20, creationRadius);
+			*/
+			f1 = Random.Range(-creationRadius, creationRadius);
+			f2 = Random.Range(-creationRadius, creationRadius);
+			f3 = Random.Range(-creationRadius, creationRadius);
+			Vector3 createPt = new Vector3(f1, f2, f3);
 			sphere.transform.position = createPt;
 			sphere.isStatic = true;
 			sphere.tag = "Obstacle";

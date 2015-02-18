@@ -4,8 +4,8 @@ using System.Collections;
 public class PlayerScript : MonoBehaviour {
 
 	bool nocollide = false;
-	bool invincible = true;
-	float hitpoints = 100.0f;
+	bool invincible = false;
+	public float hitpoints;
 
 	Vector3 prevDirection;
 	Camera mouseLookCam;
@@ -19,10 +19,13 @@ public class PlayerScript : MonoBehaviour {
 	public float forwardSpeed;
 	public float sidewaysSpeed;
 
-	float boostCharge = 100.0f;
-	//float boostDecrement = 20.0f;
-	float boostDecrement = 0.0f;
+	public float boostCharge;
+	float boostDecrement = 20.0f;
+	//float boostDecrement = 0.0f;
 	float boostIncrement;
+
+	float obstacleDamage = 10;
+	float enemyDamage = 5;
 
 	public float mouseX_AxisSensitivity;
 	public float mouseY_AxisSensitivity;
@@ -30,6 +33,9 @@ public class PlayerScript : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
+
+		hitpoints = 100.0f;
+		boostCharge = 100.0f;
 
 		boostIncrement = boostDecrement * 0.5f;
 
@@ -41,7 +47,7 @@ public class PlayerScript : MonoBehaviour {
 		mainCam = GameObject.Find ("Main Camera").camera;
 		sidewaysSpeed = defaultForwardSpeed * 0.7f;
 		mouseY_AxisSensitivity = 100.0f;
-		mouseX_AxisSensitivity = mouseY_AxisSensitivity * 0.4f;
+		mouseX_AxisSensitivity = mouseY_AxisSensitivity * 0.35f;
 		rollRate = 75.0f;
 	}
 	
@@ -184,9 +190,11 @@ public class PlayerScript : MonoBehaviour {
 		if (nocollide)
 			return;
 		//Debug.Log ("in collsion function");
-		if (collision.collider.tag == "Obstacle" || collision.collider.tag == "Enemy") {
-			if (!invincible)
-				hitpoints -= 20.0f;
+		if (!invincible) {
+			if (collision.collider.tag == "Obstacle")
+				hitpoints -= obstacleDamage;
+			if (collision.collider.tag == "Enemy")
+				hitpoints -= enemyDamage;
 		}
 	}
 

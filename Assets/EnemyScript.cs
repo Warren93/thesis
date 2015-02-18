@@ -71,6 +71,7 @@ public class EnemyScript : MonoBehaviour {
 
 	bool omniscient;
 	bool playerInvisible;
+	bool flocking = true;
 	GameObject player;
 
 	public Vector3 obstacleVec;
@@ -115,7 +116,8 @@ public class EnemyScript : MonoBehaviour {
 		changeColorBasedOnState ();
 		playerInSight = false;
 		InvokeRepeating ("changeDestination", 5, 5);
-		InvokeRepeating ("getNeighbors", Random.Range(0, neighborRefreshRate), neighborRefreshRate);
+		if (flocking)
+			InvokeRepeating ("getNeighbors", Random.Range(0, neighborRefreshRate), neighborRefreshRate);
 	}
 	
 	// Update is called once per frame
@@ -129,14 +131,16 @@ public class EnemyScript : MonoBehaviour {
 		//getNeighbors (); // form flock from other nearby boids
 
 		// IF LONE WOLF, EXPAND COHESION RANGE TO TRY TO FIND/FORM A PACK
-		if (neighbors.Count <= 0)
-			setCohesionRangeLong ();
-		else if (neighbors.Count < 7) {
-			setCohesionRangeShort();
-			cohesionRange = cohesionRange * 1.3f;
+		if (state == WANDER) {
+			if (neighbors.Count <= 0)
+				setCohesionRangeLong ();
+			else if (neighbors.Count < 7) {
+				setCohesionRangeShort();
+				cohesionRange = cohesionRange * 1.3f;
+			}
+			else
+				setCohesionRangeShort();
 		}
-		else
-			setCohesionRangeShort();
 
 		// RECOVER FROM ANY COLLISION(S)
 		dampenRigidbodyForces ();
@@ -180,6 +184,10 @@ public class EnemyScript : MonoBehaviour {
 		if (state != WANDER)
 			destination = playerPosEstimate;
 
+		// IF SEARCHING, CHECK IF NEIGHBOR HAS FOUND PLAYER
+		if (state == SEARCH)
+			checkNeighborFoundPlayer ();
+
 		//Debug.DrawLine (transform.position, destination, Color.yellow);
 
 		Vector3 newDirection = destination - transform.position;
@@ -194,13 +202,6 @@ public class EnemyScript : MonoBehaviour {
 			destinationWeight = 1;
 
 		newDirection *= destinationWeight;
-
-		/*
-		newDirection += obstacleCheck ();
-		newDirection += agentCheck ();
-		newDirection += getCohesionVec ();
-		newDirection += getAlignmentVec ();
-		*/
 
 		obstacleVec = obstacleCheck ();
 		agentVec = agentCheck ();
@@ -223,9 +224,12 @@ public class EnemyScript : MonoBehaviour {
 
 		if (Vector3.Distance (transform.position, destination) < closeInDist && (state == PURSUE || state == SEARCH)) {
 			newDirection = directVectorToDest;
-			maxSpeed = lastKnownPlayerVelocity.magnitude / Time.deltaTime;
-			maxSpeed *= 1.1f;
+			//maxSpeed = lastKnownPlayerVelocity.magnitude / Time.deltaTime;
+			//maxSpeed *= 1.3f;
 		}
+
+		if (!flocking)
+			newDirection = directVectorToDest;
 
 		direction.Normalize ();
 
@@ -245,6 +249,11 @@ public class EnemyScript : MonoBehaviour {
 		transform.LookAt (transform.position + direction);
 
 		changeColorBasedOnState ();
+
+		if (state == SEARCH) {
+			Debug.DrawRay(transform.position, transform.right * agentAvoidanceRange, Color.red);
+			Debug.DrawRay(transform.position + transform.up * 2, transform.right * cohesionRange, Color.green);
+		}
 	}
 
 	void changeStateTo(int newState) {
@@ -278,12 +287,26 @@ public class EnemyScript : MonoBehaviour {
 	}
 
 	void spreadOut() {
-		//agentAvoidanceRange = defaultAgentAvoidanceWeight * 2;
 		agentAvoidanceRange = cohesionRange * 0.5f;
-		agentAvoidanceWeight *= 3;
-		cohesionWeight = 0.0f;
+		agentAvoidanceWeight *= 1.8f;
+
+		cohesionWeight = 0.2f;
 		alignmentWeight = 0.0f;
 		destinationWeight = 100;
+
+		// add noise to player position estimate
+		//float max = sightRange * 0.66f;
+		//playerPosEstimate += new Vector3 (Random.Range (-max, max), Random.Range (-max, max), Random.Range (-max, max));
+	}
+
+	void checkNeighborFoundPlayer() {
+		foreach (GameObject neighbor in neighbors) {
+			EnemyScript neighborSc = neighbor.GetComponent<EnemyScript>();
+			if (neighborSc.state == PURSUE) {
+				playerPosEstimate = neighborSc.playerPosEstimate;
+				setDefaultWeights();
+			}
+		}
 	}
 
 	void setDefaultWeights() {
@@ -310,6 +333,7 @@ public class EnemyScript : MonoBehaviour {
 		prevLastKnownPlayerPos = lastKnownPlayerPos;
 	}
 
+	/*
 	void visionCheck() {
 		if (playerInvisible) {
 			playerInSight = false;
@@ -338,6 +362,34 @@ public class EnemyScript : MonoBehaviour {
 			}
 			playerInSight = false;
 		}
+	}
+	*/
+
+	void visionCheck() {
+		if (playerInvisible) {
+			playerInSight = false;
+			return;
+		}
+		if (omniscient) {
+			if (state == WANDER)
+				CancelInvoke("changeDestination");
+			lastKnownPlayerPos = player.transform.position;
+			state = PURSUE;
+			playerInSight = true;
+			return;
+		}
+		// check to see if player in sight
+		if (Vector3.Distance(transform.position, player.transform.position) <= sightRange) {
+			Vector3 vecToPlayer = player.transform.position - transform.position;
+			float angle = Mathf.Abs(Vector3.Angle(direction, vecToPlayer));
+			if (angle <= fov && clearLOS(gameObject, player, sightRange)) {
+				updateMemoryOfPlayerPosTo(player.transform.position);
+				playerInSight = true;
+				return;
+			}
+		}
+		playerInSight = false;
+		
 	}
 
 	bool clearLOS(GameObject obj1, GameObject obj2, float range) {
