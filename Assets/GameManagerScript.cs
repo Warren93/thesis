@@ -8,6 +8,7 @@ public class GameManagerScript : MonoBehaviour {
 	GameObject Player;
 
 	List<GameObject> asteroids;
+	List<GameObject> uniqueAsteroids;
 	List<GameObject> enemies;
 
 	Rect infoBarRect;
@@ -17,10 +18,11 @@ public class GameManagerScript : MonoBehaviour {
 	public static float mapRadius;
 	public static float warnRadius;
 
+	int numUniqueObstacles = 10;
 	int numObstacles = 800;
-	//int numObstacles = 400;
 	//int numObstacles = 0;
 	int numEnemies = 50;
+	//int numEnemies = 0;
 
 	float globalLowerBound = 2;
 	float globalUpperBound = 55; // prev 35
@@ -35,6 +37,7 @@ public class GameManagerScript : MonoBehaviour {
 	// Use this for initialization
 	void Start () {
 
+		Application.targetFrameRate = 60;
 		QualitySettings.antiAliasing = 4;
 
 		infoBarRect = new Rect (10, 10, Screen.width * 0.2f, 20);
@@ -43,7 +46,7 @@ public class GameManagerScript : MonoBehaviour {
 
 		creationRadius = 800.0f;
 		mapRadius = creationRadius * 0.9f;
-		warnRadius = mapRadius - 80;
+		warnRadius = mapRadius - 120;
 
 
 		/*
@@ -55,6 +58,7 @@ public class GameManagerScript : MonoBehaviour {
 		*/
 
 		asteroids = new List<GameObject> ();
+		uniqueAsteroids = new List<GameObject> ();
 		enemies = new List<GameObject>();
 		Player = GameObject.FindGameObjectWithTag ("Player");
 
@@ -139,7 +143,7 @@ public class GameManagerScript : MonoBehaviour {
 		*/
 
 		// toggle asteroids on/off with M key
-		if (Input.GetKeyUp (KeyCode.M)) {
+		if (Input.GetKeyDown (KeyCode.M)) {
 			foreach (GameObject obj in asteroids) {
 				if (obj.activeSelf == true)
 					obj.SetActive(false);
@@ -171,8 +175,11 @@ public class GameManagerScript : MonoBehaviour {
 			PlayerScript playerInfo = Player.GetComponent<PlayerScript> ();
 			GUI.Box(infoBarRect,
 			        "Boost: " + (int)playerInfo.boostCharge + "   Health: " + (int)playerInfo.hitpoints);
-			if (Vector3.Distance(Vector3.zero, Player.transform.position) > warnRadius) {
-				GUI.Box(warningRect, "Approaching edge of game area\nTurn back or you will take damage");
+			float playerDistFromOrigin = Vector3.Distance(Vector3.zero, Player.transform.position);
+			float distToEdge = mapRadius - playerDistFromOrigin;
+			if (playerDistFromOrigin > warnRadius) {
+				GUI.Box(warningRect, "Approaching edge of game area (distance: " + (int)distToEdge
+				        + ")\nTurn back or you will take damage");
 			}
 		}
 	}
@@ -187,25 +194,8 @@ public class GameManagerScript : MonoBehaviour {
 	}
 
 	void createAsteroids() {
-		for (int i = 0; i < numObstacles; i++) {
+		for (int i = 0; i < numUniqueObstacles; i++) {
 			GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-			float f1, f2, f3;
-			/*
-			f1 = Random.Range(-10, 10);
-			f2 = Random.Range(-10, 10);
-			f3 = Random.Range(-10, 10);
-			Vector3 createPt = new Vector3(f1, f2, f3);
-			createPt.Normalize();
-			createPt *= Random.Range(20, creationRadius);
-			*/
-			f1 = Random.Range(-creationRadius, creationRadius);
-			f2 = Random.Range(-creationRadius, creationRadius);
-			f3 = Random.Range(-creationRadius, creationRadius);
-			Vector3 createPt = new Vector3(f1, f2, f3);
-			sphere.transform.position = createPt;
-			sphere.isStatic = true;
-			sphere.tag = "Obstacle";
-			//sphere.renderer.sharedMaterial = 
 
 			float upperBound = Random.Range(globalLowerBound, globalUpperBound);
 			float lowerBound = upperBound * globalBoundRatio;
@@ -264,7 +254,36 @@ public class GameManagerScript : MonoBehaviour {
 			sphereMesh.RecalculateBounds();
 			uniqueVerts.Clear();
 
-			asteroids.Add(sphere);
+			uniqueAsteroids.Add(sphere);
 		}
+
+		for (int i = 0; i < numObstacles; i++) {
+			float f1, f2, f3;
+			/*
+			f1 = Random.Range(-10, 10);
+			f2 = Random.Range(-10, 10);
+			f3 = Random.Range(-10, 10);
+			Vector3 createPt = new Vector3(f1, f2, f3);
+			createPt.Normalize();
+			createPt *= Random.Range(20, creationRadius);
+			*/
+			f1 = Random.Range(-creationRadius, creationRadius);
+			f2 = Random.Range(-creationRadius, creationRadius);
+			f3 = Random.Range(-creationRadius, creationRadius);
+			Vector3 createPt = new Vector3(f1, f2, f3);
+			int idx = Random.Range(0, numUniqueObstacles - 1);
+			GameObject obstacle = (GameObject) Instantiate(uniqueAsteroids[idx]);
+			obstacle.transform.position = createPt;
+			obstacle.isStatic = true;
+			obstacle.tag = "Obstacle";
+
+			asteroids.Add(obstacle);
+
+		}
+
+		for (int i = 0; i < uniqueAsteroids.Count; i++) {
+			Destroy(uniqueAsteroids[i]);
+		}
+
 	}
 }

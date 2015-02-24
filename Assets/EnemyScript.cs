@@ -12,15 +12,14 @@ public class EnemyScript : MonoBehaviour {
 
 	float searchTime = 8;
 
-	//float speed = 35.0f;
-	float defaultSpeed = 45.0f;
-	float speed;
+	float defaultSpeed = 70.0f;
 	float maxSpeed;
 	public Vector3 destination;
 	public Vector3 direction;
-	//float turnPenalty = 0.03f;
-	//float turnPenalty = 0.5f;
+	Vector3 facingDirection;
 	float turnPenalty = 0.2f;
+	float energyLevel = 100;
+	float energyRegenRate = 10;
 
 	//float sightRange = 100.0f;
 	float sightRange = 150.0f;
@@ -32,24 +31,14 @@ public class EnemyScript : MonoBehaviour {
 	float closeInDist;
 
 	float defaultCohesionRangeMult = 10;
-	//float defaultCohesionRangeMult = 6;
-	//float longCohesionRangeMult = 40;
-	//float longCohesionRangeMult = 60;
 	float longCohesionRangeMult = 30;
 
 	List<GameObject> neighbors;
 	List<GameObject> closeNeighbors;
-	float neighborRefreshRate = 0.1f; // frequency in seconds at which neighboring NPCs are detected
-
-	/*
-	float obstacleAvoidanceWeight = 1.5f; // for obstacles
-	float boidAvoidanceWeight = 4.5f; // for other boids/agents
-	float cohesionWeight = 0.05f;
-	float alignmentWeight = 2.0f;
-	*/
+	float neighborRefreshRate = 0.2f; // frequency in seconds at which neighboring NPCs are detected
+	float neighborCheckTargetRate = 0.33f; // frequency in seconds that this agent checks if any neighbor has found the player
 
 	float defaultObstacleAvoidanceWeight = 20f;
-	//float defaultAgentAvoidanceWeight = 7.5f;
 	float defaultAgentAvoidanceWeight = 1.5f;
 	float defaultCohesionWeight = 6.0f;
 	float defaultAlignmentWeight = 4.0f;
@@ -94,6 +83,7 @@ public class EnemyScript : MonoBehaviour {
 
 		direction = Vector3.forward;
 		destination = Vector3.forward * 1000;
+		facingDirection = direction;
 
 		player = GameObject.FindGameObjectWithTag ("Player");
 		omniscient = false;
@@ -103,7 +93,8 @@ public class EnemyScript : MonoBehaviour {
 		//avoidanceRange = gameObject.GetComponent<SphereCollider>().bounds.extents.magnitude * 3;
 		agentAvoidanceRange = obstacleAvoidanceRange * 0.7f;
 		//closeInDist = obstacleAvoidanceRange * 8;
-		closeInDist = 15;
+		//closeInDist = 15;
+		closeInDist = 30;
 		//closeInDist = 50;
 		setCohesionRangeShort ();
 
@@ -116,31 +107,16 @@ public class EnemyScript : MonoBehaviour {
 		changeColorBasedOnState ();
 		playerInSight = false;
 		InvokeRepeating ("changeDestination", 5, 5);
-		if (flocking)
-			InvokeRepeating ("getNeighbors", Random.Range(0, neighborRefreshRate), neighborRefreshRate);
+		if (flocking) {
+			InvokeRepeating ("getNeighbors", Random.Range (0, neighborRefreshRate), neighborRefreshRate);
+			InvokeRepeating ("checkNeighborFoundPlayer", Random.Range (0, neighborCheckTargetRate), neighborCheckTargetRate);
+		}
 	}
 	
 	// Update is called once per frame
 	void Update () {
 
-		speed = defaultSpeed;
-		maxSpeed = defaultSpeed * 1.1f;
-
-		// FIND PACK (or flock, to use the boid terminology)
-		//neighbors.Clear ();
-		//getNeighbors (); // form flock from other nearby boids
-
-		// IF LONE WOLF, EXPAND COHESION RANGE TO TRY TO FIND/FORM A PACK
-		if (state == WANDER) {
-			if (neighbors.Count <= 0)
-				setCohesionRangeLong ();
-			else if (neighbors.Count < 7) {
-				setCohesionRangeShort();
-				cohesionRange = cohesionRange * 1.3f;
-			}
-			else
-				setCohesionRangeShort();
-		}
+		maxSpeed = defaultSpeed * 1.3f;
 
 		// RECOVER FROM ANY COLLISION(S)
 		dampenRigidbodyForces ();
@@ -170,36 +146,20 @@ public class EnemyScript : MonoBehaviour {
 		visionCheck ();
 
 		// IF PLAYER IN SIGHT, PURSUE PLAYER
-		if (playerInSight && state != PURSUE)
+		if (playerInSight)
 			changeStateTo (PURSUE);
-		// BEGIN SEARCHING IF PLAYER DISAPPEARED WHILE STATE WAS 'PURSUE'
-		else if (!playerInSight && state == PURSUE)
-			changeStateTo(SEARCH);
-			
 
 		// UPDATE ESTIMATE OF WHERE PLAYER IS
 		updatePlayerPosEstimate ();
 
-		// IF NOT WANDERING, GO TO WHERE PLAYER IS THOUGHT TO BE
-		if (state != WANDER)
-			destination = playerPosEstimate;
-
-		// IF SEARCHING, CHECK IF NEIGHBOR HAS FOUND PLAYER
-		if (state == SEARCH)
-			checkNeighborFoundPlayer ();
-
-		//Debug.DrawLine (transform.position, destination, Color.yellow);
+		// CHANGE FLOCKING VARIABLES BASED ON STATE
+		updateFlightParams ();
 
 		Vector3 newDirection = destination - transform.position;
-		newDirection = newDirection.normalized;
-		newDirection.Normalize();
+		if (newDirection.magnitude > 0)
+			newDirection.Normalize();
 
 		Vector3 directVectorToDest = newDirection;
-
-		if (state == PURSUE || state == SEARCH)
-			destinationWeight = 5;
-		else
-			destinationWeight = 1;
 
 		newDirection *= destinationWeight;
 
@@ -207,66 +167,112 @@ public class EnemyScript : MonoBehaviour {
 		agentVec = agentCheck ();
 		cohesionVec = getCohesionVec ();
 		alignmentVec = getAlignmentVec ();
+
 		newDirection += obstacleVec;
 		newDirection += agentVec;
 		newDirection += cohesionVec;
 		newDirection += alignmentVec;
-		/*
-		if (state == SEARCH) {
-			Debug.DrawLine(transform.position, playerPosEstimate, Color.red);
-			Debug.Log ("alignment vec is " + getAlignmentVec () + ", cohesion vec is " + getCohesionVec ()
-			           + ", agent avoid vec is " + agentVec +
-		           		", headed for destination " + destination + " and player is at " + player.transform.position);
-		}
-		*/
 
-		newDirection.Normalize ();
+		if (newDirection.magnitude > 0)
+			newDirection.Normalize ();
+
+		float speed = defaultSpeed;
 
 		if (Vector3.Distance (transform.position, destination) < closeInDist && (state == PURSUE || state == SEARCH)) {
-			newDirection = directVectorToDest;
-			//maxSpeed = lastKnownPlayerVelocity.magnitude / Time.deltaTime;
-			//maxSpeed *= 1.3f;
+			//newDirection = directVectorToDest;
+			speed = (lastKnownPlayerVelocity.magnitude / Time.deltaTime) * 1.3f;
+			if (speed <= 0)
+				speed = defaultSpeed;
 		}
 
 		if (!flocking)
 			newDirection = directVectorToDest;
 
-		direction.Normalize ();
+		if (direction.magnitude > 0)
+			direction.Normalize ();
 
 		direction += newDirection * turnPenalty;
 
-		Vector3 newPos = direction * speed;
+		Vector3 newPos = direction * speed * (energyLevel / 100.0f);
 
-		// DON'T TRAVEL AT MAX SPEED IF NOT ATTACKING PLAYER
-		if (state == WANDER && newPos.magnitude > speed)
-			newPos = Vector3.ClampMagnitude (newPos, speed);
+		if (state == WANDER && newPos.magnitude > 0 && newPos.magnitude > defaultSpeed)
+			newPos = Vector3.ClampMagnitude (newPos, defaultSpeed);
 
-		if (newPos.magnitude > maxSpeed)
+		if (newPos.magnitude > 0 && newPos.magnitude > maxSpeed)
 			newPos = Vector3.ClampMagnitude (newPos, maxSpeed);
 
 		rigidbody.MovePosition (transform.position + (newPos * Time.deltaTime));
 
-		transform.LookAt (transform.position + direction);
+		if (state == WANDER) {
+			facingDirection = direction;
+		}
+		else {
+			facingDirection = destination - transform.position;
+			facingDirection.Normalize ();
+		}
+		transform.LookAt (transform.position + facingDirection);
+
+		adjustEnergyLevelBasedOnSpeed (newPos.magnitude);
 
 		changeColorBasedOnState ();
 
+		/*
 		if (state == SEARCH) {
 			Debug.DrawRay(transform.position, transform.right * agentAvoidanceRange, Color.red);
 			Debug.DrawRay(transform.position + transform.up * 2, transform.right * cohesionRange, Color.green);
 		}
+		*/
+	}
+
+	void updateFlightParams() {
+
+		if (state == WANDER) {
+			//checkNeighborFoundPlayer ();
+			destinationWeight = 1;
+			// if lone wolf, expand cohesion range to try to find/form a pack
+			if (neighbors.Count <= 0)
+				setCohesionRangeLong ();
+			// if flock is in ideal size range, set moderate cohesion distance
+			else if (neighbors.Count < 7) {
+				setCohesionRangeShort();
+				cohesionRange = cohesionRange * 1.3f;
+			}
+			// if flock too big, lower cohesion distance
+			else
+				setCohesionRangeShort();
+		}
+		else if (state == PURSUE) {
+			Debug.DrawLine(transform.position, playerPosEstimate, Color.yellow);
+			cohesionWeight = 0.2f;
+			destinationWeight = 5;
+			agentAvoidanceWeight = defaultAgentAvoidanceWeight * 3f;
+			alignmentWeight = defaultAlignmentWeight * 0.5f;
+			destination = playerPosEstimate;
+			// if can't see player anymore, begin searching
+			if (!playerInSight)
+				changeStateTo(SEARCH);
+
+		}
+		else if (state == SEARCH) {
+			//checkNeighborFoundPlayer ();
+			Debug.DrawLine(transform.position, playerPosEstimate, Color.magenta);
+			Debug.DrawLine(playerPosEstimate, playerPosEstimate + lastKnownPlayerVelocity, Color.red);
+			destination = playerPosEstimate;
+			spreadOut();
+
+		}
+		else
+			Debug.LogError("undefined state");
+
 	}
 
 	void changeStateTo(int newState) {
 		if (state == newState)
 			return;
 
-		// DEBUG
-		/*
-		if (newState == SEARCH) {
-			state = WANDER;
-			return;
-		}
-		*/
+		// DEBUG SEARCH STATE
+		//if (newState == SEARCH)
+		//	newState = WANDER;
 
 		if (state == SEARCH && newState != SEARCH) {
 			CancelInvoke("finishSearching");
@@ -279,7 +285,6 @@ public class EnemyScript : MonoBehaviour {
 		if (newState == PURSUE)
 			destination = lastKnownPlayerPos;
 		else if (newState == SEARCH) {
-			spreadOut();
 			Invoke("finishSearching", searchTime);
 		}
 
@@ -287,12 +292,14 @@ public class EnemyScript : MonoBehaviour {
 	}
 
 	void spreadOut() {
-		agentAvoidanceRange = cohesionRange * 0.5f;
-		agentAvoidanceWeight *= 1.8f;
+		setCohesionRangeShort ();
+		cohesionRange *= 1.5f; // not long but not too short
+		agentAvoidanceRange = cohesionRange * 0.3f;
+		agentAvoidanceWeight = defaultAgentAvoidanceWeight * 1.8f;
 
-		cohesionWeight = 0.2f;
-		alignmentWeight = 0.0f;
-		destinationWeight = 100;
+		cohesionWeight = 0;
+		alignmentWeight = 0;
+		destinationWeight = Vector3.Distance(transform.position, playerPosEstimate) * 0.1f;
 
 		// add noise to player position estimate
 		//float max = sightRange * 0.66f;
@@ -300,11 +307,20 @@ public class EnemyScript : MonoBehaviour {
 	}
 
 	void checkNeighborFoundPlayer() {
+		if (state == PURSUE)
+			return;
 		foreach (GameObject neighbor in neighbors) {
 			EnemyScript neighborSc = neighbor.GetComponent<EnemyScript>();
 			if (neighborSc.state == PURSUE) {
+				// set estimate of player position to the estimate of neighbor who has found player
 				playerPosEstimate = neighborSc.playerPosEstimate;
+				// update other stuff accordingly
+				lastKnownPlayerPos = neighborSc.lastKnownPlayerPos;
+				prevLastKnownPlayerPos = neighborSc.prevLastKnownPlayerPos;
+				lastKnownPlayerVelocity = neighborSc.lastKnownPlayerVelocity;
+				// set weights back to normal so flock not spread out in search pattern
 				setDefaultWeights();
+				return;
 			}
 		}
 	}
@@ -318,8 +334,10 @@ public class EnemyScript : MonoBehaviour {
 	}
 
 	void updatePlayerPosEstimate() {
-		if (playerInSight)
+		if (playerInSight) {
 			playerPosEstimate = lastKnownPlayerPos;
+			//playerPosEstimate = player.transform.position;
+		}
 		else {
 			playerPosEstimate += lastKnownPlayerVelocity;
 		}
@@ -333,37 +351,6 @@ public class EnemyScript : MonoBehaviour {
 		prevLastKnownPlayerPos = lastKnownPlayerPos;
 	}
 
-	/*
-	void visionCheck() {
-		if (playerInvisible) {
-			playerInSight = false;
-			return;
-		}
-		if (omniscient) {
-			if (state == WANDER)
-				CancelInvoke("changeDestination");
-			lastKnownPlayerPos = player.transform.position;
-			state = PURSUE;
-			playerInSight = true;
-			return;
-		}
-		// check to see if player in sight
-		Collider[] cols = Physics.OverlapSphere(transform.position, sightRange);
-		foreach (Collider col in cols) {
-			if (col.gameObject.tag == "Player") {
-				Vector3 objPos = col.gameObject.transform.position;
-				Vector3 vecToPlayer = objPos - transform.position;
-				float angle = Mathf.Abs(Vector3.Angle(direction, vecToPlayer));
-				if (angle <= fov && clearLOS(gameObject, col.gameObject, sightRange)) {
-					updateMemoryOfPlayerPosTo(col.gameObject.transform.position);
-					playerInSight = true;
-					return;
-				}
-			}
-			playerInSight = false;
-		}
-	}
-	*/
 
 	void visionCheck() {
 		if (playerInvisible) {
@@ -379,9 +366,9 @@ public class EnemyScript : MonoBehaviour {
 			return;
 		}
 		// check to see if player in sight
-		if (Vector3.Distance(transform.position, player.transform.position) <= sightRange) {
+		if (player && Vector3.Distance(transform.position, player.transform.position) <= sightRange) {
 			Vector3 vecToPlayer = player.transform.position - transform.position;
-			float angle = Mathf.Abs(Vector3.Angle(direction, vecToPlayer));
+			float angle = Mathf.Abs(Vector3.Angle(facingDirection, vecToPlayer));
 			if (angle <= fov && clearLOS(gameObject, player, sightRange)) {
 				updateMemoryOfPlayerPosTo(player.transform.position);
 				playerInSight = true;
@@ -439,24 +426,6 @@ public class EnemyScript : MonoBehaviour {
 		return avoidanceVec * obstacleAvoidanceWeight;
 	}
 
-	/*
-	Vector3 agentCheck() {
-		// check for other agents and return vector away from them
-		Collider[] cols = Physics.OverlapSphere(transform.position, agentAvoidanceRange);
-		Vector3 avoidanceVec = Vector3.zero;
-		foreach (Collider col in cols) {
-			if (col.gameObject != gameObject && col.gameObject.tag == "Enemy") {
-				Vector3 vecFromObj = transform.position - col.gameObject.transform.position;
-				float range = vecFromObj.magnitude;
-				vecFromObj.Normalize();
-				//avoidanceVec += vecFromObj * agentAvoidanceWeight * (1 / Mathf.Pow(range, 2));
-				avoidanceVec += vecFromObj * (1 / range);
-			}
-		}
-		return avoidanceVec * agentAvoidanceWeight;
-	}
-	*/
-	
 	Vector3 agentCheck() {
 		Vector3 avoidanceVec = Vector3.zero;
 		foreach (GameObject enemy in closeNeighbors) {
@@ -485,9 +454,6 @@ public class EnemyScript : MonoBehaviour {
 	}
 
 	Vector3 getCohesionVec() {
-		float multiplier = 1;
-		if (state == PURSUE || state == SEARCH)
-			multiplier = 0.2f;
 		Vector3 localCentroid = transform.position;
 		float flockSize = neighbors.Count + 1;
 		foreach (GameObject obj in neighbors) {
@@ -498,11 +464,10 @@ public class EnemyScript : MonoBehaviour {
 		if (Vector3.Distance (transform.position, localCentroid) < agentAvoidanceRange * 4f)
 			return Vector3.zero;
 		Vector3 vecToLocalCent = localCentroid - transform.position;
-		return vecToLocalCent * cohesionWeight * multiplier;
+		return vecToLocalCent * cohesionWeight;
 	}
 
 	Vector3 getAlignmentVec () {
-		float multiplier = 1;
 		// get average destination of flock
 		Vector3 avgDest = destination;
 		float flockSize = neighbors.Count + 1;
@@ -510,9 +475,7 @@ public class EnemyScript : MonoBehaviour {
 			EnemyScript currentObj = obj.GetComponent<EnemyScript>();
 			avgDest += currentObj.destination;
 		}
-		if (state == PURSUE || state == SEARCH)
-			multiplier = 3;
-		avgDest += destination * multiplier;
+		avgDest += destination;
 		avgDest /= flockSize;
 		// get vector to average destination
 		Vector3 vecToAvgDest = avgDest - transform.position;
@@ -521,16 +484,8 @@ public class EnemyScript : MonoBehaviour {
 
 
 	void dampenRigidbodyForces() {
-		float cutoff = 0.000001f;
-		if (rigidbody.velocity.magnitude > 0 || rigidbody.angularVelocity.magnitude > 0) {
-			//Debug.Log ("collision velocity: " + rigidbody.velocity.magnitude + ", collision angular: " + rigidbody.angularVelocity.magnitude);
-			rigidbody.velocity *= 0.99999995f * Time.deltaTime;
-			rigidbody.angularVelocity *= 0.99999995f * Time.deltaTime;
-			if (rigidbody.velocity.magnitude <= cutoff)
-				rigidbody.velocity = Vector3.zero;
-			if (rigidbody.angularVelocity.magnitude <= cutoff)
-				rigidbody.angularVelocity = Vector3.zero;
-		}
+		rigidbody.velocity = Vector3.zero;
+		rigidbody.angularVelocity = Vector3.zero;
 	}
 
 	void setCohesionRangeShort() {
@@ -553,11 +508,23 @@ public class EnemyScript : MonoBehaviour {
 		f3 = Random.Range(-10, 10);
 		Vector3 createPt = new Vector3(f1, f2, f3);
 		createPt.Normalize();
-		//createPt *= Random.Range(800, 1000);
-		//destination = transform.position + createPt;
 
 		createPt *= Random.Range(GameManagerScript.creationRadius * 0.3f, GameManagerScript.creationRadius * 1.3f);
 		destination = createPt;
+	}
+
+	void adjustEnergyLevelBasedOnSpeed (float currentSpeed) {
+		float speedPenalty = currentSpeed - defaultSpeed;
+		if (speedPenalty > 0)
+			energyLevel -= speedPenalty * 0.3f;
+		else if (energyLevel < 100)
+			energyLevel += energyRegenRate * Time.deltaTime;
+
+		//if (energyLevel <= 0)
+		//	Debug.Log ("exhausted");
+
+		if (energyLevel > 100)
+			energyLevel = 100;
 	}
 
 	void changeColorBasedOnState() {
@@ -568,6 +535,22 @@ public class EnemyScript : MonoBehaviour {
 		else if (state == SEARCH)
 			renderer.material.color = Color.yellow;
 		else
-			renderer.material.color = Color.white; // should never get here
+			renderer.material.color = Color.white; // should probably never get here
+
+		// make color darker if exhausted
+		if (energyLevel <= 0) {
+			//renderer.material.color *= 0.5f;
+			renderer.material.color = Color.magenta;
 		}
+	}
+
+	bool checkVectorIsNaN(Vector3 test) {
+		if (System.Single.IsNaN (test.x) || System.Single.IsNaN (test.y) || System.Single.IsNaN (test.z)) {
+			//Debug.Log ("position is: " + rigidbody.position + ", direction is: " + direction);
+			return true;
+		}
+		return false;
+	}
+	
+
 }
