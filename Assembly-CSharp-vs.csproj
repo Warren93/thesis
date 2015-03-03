@@ -46,9 +46,13 @@
 	</Reference>
   </ItemGroup>
   <ItemGroup>
+     <Compile Include="Assets\CameraScript.cs" />
      <Compile Include="Assets\EnemyScript.cs" />
      <Compile Include="Assets\GameManagerScript.cs" />
      <Compile Include="Assets\PlayerScript.cs" />
+ <Reference Include="Assembly-UnityScript-firstpass">
+ <HintPath>/Users/Chuck/thesis/Library/ScriptAssemblies/Assembly-UnityScript-firstpass.dll</HintPath>
+ </Reference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

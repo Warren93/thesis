@@ -68,6 +68,8 @@ public class EnemyScript : MonoBehaviour {
 	public Vector3 cohesionVec;
 	public Vector3 alignmentVec;
 
+	TrailRenderer trail;
+
 	// Use this for initialization
 	void Start () {
 
@@ -88,6 +90,8 @@ public class EnemyScript : MonoBehaviour {
 		player = GameObject.FindGameObjectWithTag ("Player");
 		omniscient = false;
 		playerInvisible = false;
+
+		trail = GetComponent<TrailRenderer> ();
 
 		obstacleAvoidanceRange = transform.localScale.magnitude * 1.5f;
 		//avoidanceRange = gameObject.GetComponent<SphereCollider>().bounds.extents.magnitude * 3;
@@ -542,6 +546,8 @@ public class EnemyScript : MonoBehaviour {
 			//renderer.material.color *= 0.5f;
 			renderer.material.color = Color.magenta;
 		}
+
+		trail.material.color = renderer.material.color;
 	}
 
 	bool checkVectorIsNaN(Vector3 test) {

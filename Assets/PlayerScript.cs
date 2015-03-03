@@ -31,6 +31,8 @@ public class PlayerScript : MonoBehaviour {
 	public float mouseY_AxisSensitivity;
 	public float rollRate;
 
+	Vector3 vecToMainCam;
+
 	// Use this for initialization
 	void Start () {
 
@@ -45,6 +47,10 @@ public class PlayerScript : MonoBehaviour {
 
 		mouseLookCam = GameObject.Find("MouseLookCam").camera;
 		mainCam = GameObject.Find ("Main Camera").camera;
+		mouseLookCam.backgroundColor = mainCam.backgroundColor;
+
+		vecToMainCam = mainCam.transform.position - transform.position;
+
 		sidewaysSpeed = defaultForwardSpeed * 0.7f;
 		mouseY_AxisSensitivity = 100.0f;
 		mouseX_AxisSensitivity = mouseY_AxisSensitivity * 0.35f;
@@ -58,12 +64,14 @@ public class PlayerScript : MonoBehaviour {
 		//Debug.Log ("mouse look cam is at " + mouseLookCam.transform.position);
 
 		if (Input.GetMouseButtonDown (2) || Input.GetKeyDown (KeyCode.F)) {
+			mainCam.GetComponent<CameraScript>().enabled = false;
 			mainCam.enabled = false;
 			mainCam.GetComponent<AudioListener>().enabled = false;
 			mouseLookCam.enabled = true;
 			mouseLookCam.GetComponent<AudioListener>().enabled = true;
 		}
 		else if (Input.GetMouseButtonUp (2) || Input.GetKeyUp (KeyCode.F)) {
+			mainCam.GetComponent<CameraScript>().enabled = true;
 			mainCam.enabled = true;
 			mainCam.GetComponent<AudioListener>().enabled = true;
 			mouseLookCam.enabled = false;
@@ -79,8 +87,10 @@ public class PlayerScript : MonoBehaviour {
 		deltaMouseY = Input.GetAxis ("Mouse Y");
 		// mouse look stuff
 		if (Input.GetMouseButton(2)) {
-			mouseLookCam.transform.position = mainCam.transform.position;
-			mouseLookCam.transform.rotation = mainCam.transform.rotation;
+			//mouseLookCam.transform.position = mainCam.transform.position;
+			//mouseLookCam.transform.rotation = mainCam.transform.rotation;
+			mouseLookCam.transform.position = transform.position + (transform.rotation * vecToMainCam);
+			mouseLookCam.transform.rotation = transform.rotation;
 			mouseLookY_Rotation += Time.deltaTime * deltaMouseX * mouseLookSensitivity;
 			mouseLookX_Rotation += Time.deltaTime * deltaMouseY * mouseLookSensitivity;
 			mouseLookCam.transform.RotateAround(transform.position, transform.right, mouseLookX_Rotation);
@@ -91,7 +101,7 @@ public class PlayerScript : MonoBehaviour {
 			//Debug.DrawLine(transform.position, nearestEnemyPos, Color.cyan);
 			Vector3 vecToEnemy = nearestEnemyPos - transform.position;
 			if (vecToEnemy != Vector3.zero) {
-				mouseLookCam.transform.position = transform.position - vecToEnemy.normalized * Vector3.Distance(transform.position, mainCam.transform.position);
+				mouseLookCam.transform.position = transform.position - vecToEnemy.normalized * vecToMainCam.magnitude; //Vector3.Distance(transform.position, mainCam.transform.position);
 				mouseLookCam.transform.LookAt(nearestEnemyPos);
 			}
 			else

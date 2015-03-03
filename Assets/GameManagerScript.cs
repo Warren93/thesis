@@ -92,6 +92,10 @@ public class GameManagerScript : MonoBehaviour {
 	// Update is called once per frame
 	void Update () {
 
+		foreach (Camera cam in Camera.allCameras) {
+			cam.backgroundColor = Color.black;
+		}
+
 		// damage player if they get too far from the center of the game world
 		if (Player && Vector3.Distance(Vector3.zero, Player.transform.position) > mapRadius) {
 			PlayerScript playerInfo = Player.GetComponent<PlayerScript> ();
