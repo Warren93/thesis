@@ -15,6 +15,13 @@ public class CameraScript : MonoBehaviour {
 	float prev_y_angle = 0;
 	float prev_x_angle = 0;
 
+	// new approach
+	float lookY_Rotation = 0;
+	float lookX_Rotation = 0;
+	float lookZ_Rotation = 0;
+	float mouseLookSensitivity = 200;
+
+
 	// Use this for initialization
 	void Start () {
 		player = GameObject.FindGameObjectWithTag("Player");
@@ -32,11 +39,10 @@ public class CameraScript : MonoBehaviour {
 		target = player.transform.position + (player.transform.up * camAltAbovePlayer);
 		//transform.position = target + (player.transform.forward * camDistBehindPlayer);
 
-
-
 		//moveCam ();
 	}
-	
+
+	/*
 	void LateUpdate () {
 
 		if (!player)
@@ -157,6 +163,7 @@ public class CameraScript : MonoBehaviour {
 	void moveCam() {
 		transform.position = player.transform.position + Vector3.ClampMagnitude(transform.position - player.transform.position, 8);
 	}
+	*/
 
 	/*
 	void LateUpdate () {
@@ -181,5 +188,98 @@ public class CameraScript : MonoBehaviour {
 		//transform.localRotation = Quaternion.Slerp(transform.localRotation, targetRot, Time.deltaTime * smooth);
 	}
 */
+
+	void LateUpdate() {
+
+		if (!player)
+			return;
+
+		float deltaMouseX, deltaMouseY, deltaZ;
+		deltaZ = 0;
+		deltaMouseX = Input.GetAxis ("Mouse X");
+		deltaMouseY = Input.GetAxis ("Mouse Y");
+		if (Input.GetKey(KeyCode.Q))
+			deltaZ -= 1f;
+		if (Input.GetKey(KeyCode.E))
+			deltaZ += 1f;
+		else if (!Input.GetKey(KeyCode.Q) && !Input.GetKey(KeyCode.E))
+			deltaZ = 0;
+		transform.position = player.transform.position + (player.transform.rotation * vecFromPlayer);
+		transform.rotation = player.transform.rotation;
+		lookY_Rotation += Time.deltaTime * deltaMouseX * mouseLookSensitivity * 0.07f;
+		lookX_Rotation += Time.deltaTime * deltaMouseY * mouseLookSensitivity * 0.07f;
+		lookZ_Rotation += Time.deltaTime * deltaZ * mouseLookSensitivity * 0.07f;
+
+		lookX_Rotation = Mathf.Clamp(lookX_Rotation, -5, 5);
+		lookY_Rotation = Mathf.Clamp(lookY_Rotation, -5, 5);
+		lookZ_Rotation = Mathf.Clamp(lookZ_Rotation, -5, 5);
+
+		transform.RotateAround(player.transform.position, player.transform.right, lookX_Rotation);
+		transform.RotateAround(player.transform.position, player.transform.up, -lookY_Rotation);
+		transform.RotateAround(player.transform.position, player.transform.forward, lookZ_Rotation);
+
+		/*
+		if (deltaMouseX == 0 || Mathf.Abs(deltaMouseY) > Mathf.Abs(deltaMouseX)) {
+			if (lookX_Rotation > 0)
+				lookX_Rotation -= 20 * Time.deltaTime;
+			if (lookX_Rotation < 0)
+				lookX_Rotation += 20 * Time.deltaTime;
+			else
+				lookX_Rotation = 0;
+		}
+		if (deltaMouseY == 0 || Mathf.Abs(deltaMouseX) > Mathf.Abs(deltaMouseY)) {
+			if (lookY_Rotation > 0)
+				lookY_Rotation -= 20 * Time.deltaTime;
+			if (lookY_Rotation < 0)
+				lookY_Rotation += 20 * Time.deltaTime;
+			else
+				lookY_Rotation = 0;
+		}
+
+		if (Mathf.Abs(lookX_Rotation) < 0.1f)
+			lookX_Rotation = 0;
+		if (Mathf.Abs(lookY_Rotation) < 0.1f)
+			lookY_Rotation = 0;
+		*/
+
+		float defaultDecrement = Time.deltaTime * 8;
+
+		if (deltaMouseX == 0) {
+			float decrement = defaultDecrement;
+			if (Mathf.Abs(lookX_Rotation) < defaultDecrement)
+				decrement = Mathf.Abs(lookX_Rotation);
+			if (lookX_Rotation > 0)
+				lookX_Rotation -= decrement;
+			else if (lookX_Rotation < 0)
+				lookX_Rotation += decrement;
+		}
+		if (deltaMouseY == 0) {
+			float decrement = defaultDecrement;
+			if (Mathf.Abs(lookY_Rotation) < defaultDecrement)
+				decrement = Mathf.Abs(lookY_Rotation);
+			//Debug.Log("y rot is " + lookY_Rotation + ", abs val is " +  Mathf.Abs(lookY_Rotation) + ", decrement is " + decrement);
+			if (lookY_Rotation > 0)
+				lookY_Rotation -= decrement;
+			else if (lookY_Rotation < 0)
+				lookY_Rotation += decrement;
+		}
+		if (deltaZ == 0) {
+			float decrement = defaultDecrement;
+			if (Mathf.Abs(lookZ_Rotation) < defaultDecrement)
+				decrement = Mathf.Abs(lookZ_Rotation);
+			lookZ_Rotation -= lookZ_Rotation * decrement;
+			if (Mathf.Abs(lookZ_Rotation) < 0.1f)
+				lookZ_Rotation = 0;
+		}
+
+		//Debug.Log ("dx: " + deltaMouseX + ", dy: " + deltaMouseY + ", dz: " + deltaZ);
+
+		/*
+		Debug.Log ("lookX_Rotation is " + lookX_Rotation
+		           + ", lookY_Rotation is " + lookY_Rotation
+		           + ", lookZ_Rotation is " + lookZ_Rotation);
+*/		           
+
+	}
 
 }

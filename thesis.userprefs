@@ -1,13 +1,13 @@
 ﻿<Properties>
-  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" PreferredExecutionTarget="MonoDevelop.Default" />
   <MonoDevelop.Ide.Workbench ActiveDocument="Assets/CameraScript.cs">
     <Files>
-      <File FileName="Assets/EnemyScript.cs" Line="519" Column="37" />
-      <File FileName="Assets/PlayerScript.cs" Line="1" Column="1" />
-      <File FileName="Assets/GameManagerScript.cs" Line="53" Column="87" />
-      <File FileName="Assets/Standard Assets/Scripts/Camera Scripts/SmoothLookAt.js" Line="26" Column="2" />
-      <File FileName="Assets/Standard Assets/Scripts/Camera Scripts/SmoothFollow.js" Line="41" Column="40" />
-      <File FileName="Assets/CameraScript.cs" Line="67" Column="40" />
+      <File FileName="Assets/CameraScript.cs" Line="259" Column="57" />
+      <File FileName="Assets/EnemyScript.cs" Line="550" Column="50" />
+      <File FileName="Assets/PlayerScript.cs" Line="19" Column="28" />
+      <File FileName="Assets/GameManagerScript.cs" Line="96" Column="38" />
+      <File FileName="Assets/Standard Assets/Scripts/Camera Scripts/SmoothFollow.js" Line="45" Column="97" />
+      <File FileName="Assets/Standard Assets/Scripts/Camera Scripts/SmoothLookAt.js" Line="7" Column="25" />
     </Files>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.DebuggingService.Breakpoints>

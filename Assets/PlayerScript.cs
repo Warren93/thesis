@@ -93,6 +93,10 @@ public class PlayerScript : MonoBehaviour {
 			mouseLookCam.transform.rotation = transform.rotation;
 			mouseLookY_Rotation += Time.deltaTime * deltaMouseX * mouseLookSensitivity;
 			mouseLookX_Rotation += Time.deltaTime * deltaMouseY * mouseLookSensitivity;
+
+			//mouseLookX_Rotation = Mathf.Clamp(mouseLookX_Rotation, -5, 5);
+			//mouseLookY_Rotation = Mathf.Clamp(mouseLookY_Rotation, -5, 5);
+
 			mouseLookCam.transform.RotateAround(transform.position, transform.right, mouseLookX_Rotation);
 			mouseLookCam.transform.RotateAround(transform.position, transform.up, mouseLookY_Rotation);
 		}
