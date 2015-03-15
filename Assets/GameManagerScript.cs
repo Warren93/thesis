@@ -22,7 +22,7 @@ public class GameManagerScript : MonoBehaviour {
 	int numObstacles = 800;
 	//int numObstacles = 0;
 	int numEnemies = 50;
-	//int numEnemies = 0;
+	//int numEnemies = 1;
 
 	float globalLowerBound = 2;
 	float globalUpperBound = 55; // prev 35

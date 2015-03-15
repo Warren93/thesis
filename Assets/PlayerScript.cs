@@ -1,10 +1,11 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class PlayerScript : MonoBehaviour {
 
 	bool nocollide = false;
-	bool invincible = false;
+	bool invincible = true;
 	public float hitpoints;
 
 	Vector3 prevDirection;
@@ -20,8 +21,8 @@ public class PlayerScript : MonoBehaviour {
 	public float sidewaysSpeed;
 
 	public float boostCharge;
-	float boostDecrement = 20.0f;
-	//float boostDecrement = 0.0f;
+	//float boostDecrement = 17.0f;
+	float boostDecrement = 0.0f;
 	float boostIncrement;
 
 	float obstacleDamage = 10;
@@ -39,7 +40,7 @@ public class PlayerScript : MonoBehaviour {
 		hitpoints = 100.0f;
 		boostCharge = 100.0f;
 
-		boostIncrement = boostDecrement * 0.5f;
+		boostIncrement = boostDecrement * 0.7f;
 
 		mouseLookY_Rotation = 0;
 		mouseLookX_Rotation = 0;
@@ -63,19 +64,14 @@ public class PlayerScript : MonoBehaviour {
 		dampenRigidbodyForces ();
 		//Debug.Log ("mouse look cam is at " + mouseLookCam.transform.position);
 
-		if (Input.GetMouseButtonDown (2) || Input.GetKeyDown (KeyCode.F)) {
-			mainCam.GetComponent<CameraScript>().enabled = false;
-			mainCam.enabled = false;
-			mainCam.GetComponent<AudioListener>().enabled = false;
-			mouseLookCam.enabled = true;
-			mouseLookCam.GetComponent<AudioListener>().enabled = true;
+		Vector3 nearestEnemyPos = getNearestEnemyPos();
+
+		if (Input.GetMouseButtonDown (2) || (Input.GetKeyDown(KeyCode.F) && nearestEnemyPos != transform.position)) {
+			switchToMouseLookCam();
 		}
-		else if (Input.GetMouseButtonUp (2) || Input.GetKeyUp (KeyCode.F)) {
-			mainCam.GetComponent<CameraScript>().enabled = true;
-			mainCam.enabled = true;
-			mainCam.GetComponent<AudioListener>().enabled = true;
-			mouseLookCam.enabled = false;
-			mouseLookCam.GetComponent<AudioListener>().enabled = false;
+		else if (Input.GetMouseButtonUp (2) || Input.GetKeyUp(KeyCode.F)
+		         || (!Input.GetMouseButton(2) && nearestEnemyPos == transform.position)) {
+			switchToMainCam();
 			// reset mouselook camera position
 			resetMouseLookCamPosition();
 			mouseLookY_Rotation = 0;
@@ -100,16 +96,11 @@ public class PlayerScript : MonoBehaviour {
 			mouseLookCam.transform.RotateAround(transform.position, transform.right, mouseLookX_Rotation);
 			mouseLookCam.transform.RotateAround(transform.position, transform.up, mouseLookY_Rotation);
 		}
-		else if (Input.GetKey (KeyCode.F)) {
-			Vector3 nearestEnemyPos = getNearestEnemyPos();
-			//Debug.DrawLine(transform.position, nearestEnemyPos, Color.cyan);
-			Vector3 vecToEnemy = nearestEnemyPos - transform.position;
-			if (vecToEnemy != Vector3.zero) {
-				mouseLookCam.transform.position = transform.position - vecToEnemy.normalized * vecToMainCam.magnitude; //Vector3.Distance(transform.position, mainCam.transform.position);
-				mouseLookCam.transform.LookAt(nearestEnemyPos);
-			}
-			else
-				resetMouseLookCamPosition();
+		else if (Input.GetKey (KeyCode.F) && nearestEnemyPos != transform.position) {
+			Debug.DrawLine(transform.position, nearestEnemyPos, Color.cyan);
+			Vector3 vecFromEnemy = transform.position - nearestEnemyPos;
+			mouseLookCam.transform.position = transform.position + vecFromEnemy.normalized * vecToMainCam.magnitude; //Vector3.Distance(transform.position, mainCam.transform.position);
+			mouseLookCam.transform.LookAt(nearestEnemyPos);
 		}
 		// movement stuff
 		if((deltaMouseX != 0 || deltaMouseY != 0) && !Input.GetMouseButton(2)){
@@ -124,7 +115,7 @@ public class PlayerScript : MonoBehaviour {
 
 		// accelerate (use boost)
 		if (Input.GetKey (KeyCode.LeftShift) && boostCharge > 0) {
-			forwardSpeed = defaultForwardSpeed * 2f;
+			forwardSpeed = defaultForwardSpeed * 2.25f;
 			boostCharge -= boostDecrement * Time.deltaTime;
 		}
 		// decelerate
@@ -183,16 +174,36 @@ public class PlayerScript : MonoBehaviour {
 		}
 	}
 
+	void switchToMouseLookCam() {
+		mainCam.GetComponent<CameraScript>().enabled = false;
+		mainCam.enabled = false;
+		mainCam.GetComponent<AudioListener>().enabled = false;
+		mouseLookCam.enabled = true;
+		mouseLookCam.GetComponent<AudioListener>().enabled = true;
+	}
+
+	void switchToMainCam() {
+		mainCam.GetComponent<CameraScript>().enabled = true;
+		mainCam.enabled = true;
+		mainCam.GetComponent<AudioListener>().enabled = true;
+		mouseLookCam.enabled = false;
+		mouseLookCam.GetComponent<AudioListener>().enabled = false;
+	}
+
 	Vector3 getNearestEnemyPos() {
 		Collider[] cols = Physics.OverlapSphere(transform.position, 150);
+		List<Collider> relevantCols = new List<Collider> ();
 		Vector3 nearest = transform.position;
-		if (cols.Length <= 0)
+		foreach (Collider col in cols)
+			if (col.gameObject.tag == "Enemy")
+				relevantCols.Add(col);
+		if (relevantCols.Count <= 0)
 			return nearest;
-		nearest = cols [0].gameObject.transform.position;
+		nearest = relevantCols [0].gameObject.transform.position;
 		float distToNearest = Vector3.Distance (transform.position, nearest);
-		foreach (Collider col in cols) {
+		foreach (Collider col in relevantCols) {
 			float distToCurrent = Vector3.Distance(transform.position, col.gameObject.transform.position);
-			if (col.gameObject.tag == "Enemy" && distToCurrent < distToNearest) {
+			if (distToCurrent < distToNearest) {
 				nearest = col.gameObject.transform.position;
 				distToNearest = distToCurrent;
 			}
