@@ -5,7 +5,7 @@ using System.Collections.Generic;
 public class PlayerScript : MonoBehaviour {
 
 	bool nocollide = false;
-	bool invincible = true;
+	bool invincible = false;
 	public float hitpoints;
 
 	Vector3 prevDirection;
@@ -15,14 +15,15 @@ public class PlayerScript : MonoBehaviour {
 	float mouseLookY_Rotation;
 	float mouseLookX_Rotation;
 	float mouseLookSensitivity;
+	int mlb = 0; // mouse look button index
 
 	float defaultForwardSpeed = 40.0f;
 	public float forwardSpeed;
 	public float sidewaysSpeed;
 
 	public float boostCharge;
-	//float boostDecrement = 17.0f;
-	float boostDecrement = 0.0f;
+	float boostDecrement = 21f; // was 17
+	//float boostDecrement = 0.0f;
 	float boostIncrement;
 
 	float obstacleDamage = 10;
@@ -34,8 +35,12 @@ public class PlayerScript : MonoBehaviour {
 
 	Vector3 vecToMainCam;
 
+	GameObject gameManagerRef;
+
 	// Use this for initialization
 	void Start () {
+
+		gameManagerRef = GameObject.FindGameObjectWithTag ("GameManager");
 
 		hitpoints = 100.0f;
 		boostCharge = 100.0f;
@@ -66,11 +71,11 @@ public class PlayerScript : MonoBehaviour {
 
 		Vector3 nearestEnemyPos = getNearestEnemyPos();
 
-		if (Input.GetMouseButtonDown (2) || (Input.GetKeyDown(KeyCode.F) && nearestEnemyPos != transform.position)) {
+		if (Input.GetMouseButtonDown (mlb) || (Input.GetKeyDown(KeyCode.F) && nearestEnemyPos != transform.position)) {
 			switchToMouseLookCam();
 		}
-		else if (Input.GetMouseButtonUp (2) || Input.GetKeyUp(KeyCode.F)
-		         || (!Input.GetMouseButton(2) && nearestEnemyPos == transform.position)) {
+		else if (Input.GetMouseButtonUp (mlb) || Input.GetKeyUp(KeyCode.F)
+		         || (!Input.GetMouseButton(mlb) && nearestEnemyPos == transform.position)) {
 			switchToMainCam();
 			// reset mouselook camera position
 			resetMouseLookCamPosition();
@@ -82,7 +87,7 @@ public class PlayerScript : MonoBehaviour {
 		deltaMouseX = Input.GetAxis ("Mouse X");
 		deltaMouseY = Input.GetAxis ("Mouse Y");
 		// mouse look stuff
-		if (Input.GetMouseButton(2)) {
+		if (Input.GetMouseButton(mlb)) {
 			//mouseLookCam.transform.position = mainCam.transform.position;
 			//mouseLookCam.transform.rotation = mainCam.transform.rotation;
 			mouseLookCam.transform.position = transform.position + (transform.rotation * vecToMainCam);
@@ -103,13 +108,16 @@ public class PlayerScript : MonoBehaviour {
 			mouseLookCam.transform.LookAt(nearestEnemyPos);
 		}
 		// movement stuff
-		if((deltaMouseX != 0 || deltaMouseY != 0) && !Input.GetMouseButton(2)){
+		if((deltaMouseX != 0 || deltaMouseY != 0) && !Input.GetMouseButton(mlb)){
 			//Debug.Log("mouse moved");
 			transform.RotateAround(transform.position, transform.up, Time.deltaTime * deltaMouseX * mouseX_AxisSensitivity);
 			transform.RotateAround(transform.position, transform.right, Time.deltaTime * -1 * deltaMouseY * mouseY_AxisSensitivity);
 		}
 
 		forwardSpeed = defaultForwardSpeed;
+
+		if (GameManagerScript.showWelcomeMsg == true)
+			forwardSpeed = 0;
 
 		//Debug.Log ("forward speed is " + forwardSpeed);
 
@@ -223,19 +231,20 @@ public class PlayerScript : MonoBehaviour {
 		}
 	}
 
+	void OnTriggerEnter(Collider other) {
+		if (other.collider.tag == "Score Powerup") {
+			GameManagerScript.score += 1;
+			Destroy(other.collider.gameObject);
+			gameManagerRef.GetComponent<GameManagerScript>().createScorePowerup_Delayed();
+		}
+	}
+	
 	void checkDead() {
 		if (hitpoints <= 0)
-			endGame ();
+			resetGame ();
 	}
 
-	void endGame() {
-		Destroy (gameObject);
-		Application.Quit();
-		/*
-		if ((Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.OSXEditor)
-		    && UnityEditor.EditorApplication.isPlaying == true) {
-			UnityEditor.EditorApplication.isPlaying = false;
-		}
-		*/
+	void resetGame() {
+		Application.LoadLevel(0);
 	}
 }

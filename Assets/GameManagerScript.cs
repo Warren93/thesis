@@ -6,13 +6,23 @@ public class GameManagerScript : MonoBehaviour {
 
 	public GameObject Enemy;
 	GameObject Player;
+	public GameObject scorePowerupPrefab;
+	GameObject ScorePowerup = null;
+	Color powerupColor;
+	public static int score;
 
 	List<GameObject> asteroids;
 	List<GameObject> uniqueAsteroids;
 	List<GameObject> enemies;
+	bool enemiesInitialized = false;
 
 	Rect infoBarRect;
 	Rect warningRect;
+
+	static bool firstLoad = true;
+	bool showLevelLoadMsg = true;
+	int aiType = 0;
+	public static bool showWelcomeMsg = true;
 
 	public static float creationRadius;
 	public static float mapRadius;
@@ -34,14 +44,22 @@ public class GameManagerScript : MonoBehaviour {
 	Camera boidCam;
 	*/
 
+	GUIStyle guiStyle;
+
 	// Use this for initialization
 	void Start () {
 
 		Application.targetFrameRate = 60;
 		QualitySettings.antiAliasing = 4;
 
-		infoBarRect = new Rect (10, 10, Screen.width * 0.2f, 20);
-		warningRect = new Rect (0, 0, Screen.width * 0.2f, 45);
+		//guiStyle = new GUIStyle();
+
+		score = 0;
+		powerupColor = Color.magenta;
+		powerupColor.a = 0.5f;
+
+		infoBarRect = new Rect (10, 10, Screen.width * 0.5f, 35);
+		warningRect = new Rect (0, 0, Screen.width * 0.6f, 50);
 		warningRect.center = new Vector2 (Screen.width * 0.5f, Screen.height * 0.5f);
 
 		creationRadius = 800.0f;
@@ -65,7 +83,7 @@ public class GameManagerScript : MonoBehaviour {
 		// create enemy
 		for (int i = 0; i < numEnemies; i++) {
 			//Vector3 spawnPos = Vector3.zero + Vector3.back * 70;
-			Vector3 spawnPos = Vector3.back * 200;
+			Vector3 spawnPos = Vector3.back * 400;
 			float f1, f2, f3;
 			/*
 			f1 = Random.Range(-10, 10);
@@ -87,6 +105,11 @@ public class GameManagerScript : MonoBehaviour {
 
 		createAsteroids ();
 
+		if (firstLoad)
+			showLevelLoadMsg = false;
+
+		Invoke ("removeLevelLoadMessage", 2);
+
 	}
 	
 	// Update is called once per frame
@@ -102,50 +125,57 @@ public class GameManagerScript : MonoBehaviour {
 			playerInfo.hitpoints -= 60 * Time.deltaTime;
 		}
 
-		if (Input.GetKeyUp(KeyCode.V)) {
+		if (Input.GetKeyUp(KeyCode.Alpha1) || Input.GetKeyUp(KeyCode.Alpha2) || Input.GetKeyUp(KeyCode.Alpha3) || Input.GetKeyUp(KeyCode.Alpha4) || Input.GetKeyUp(KeyCode.Alpha5)) {
 			foreach (GameObject enemy in enemies) {
 				EnemyScript currentEnemy = enemy.GetComponent<EnemyScript>();
-				if (currentEnemy.enabled == false)
+				if (currentEnemy.enabled == false) {
+					// all AI behaviors enabled
+					if (Input.GetKeyUp(KeyCode.Alpha1)) {
+						aiType = 1;
+						currentEnemy.flockingEnabled = true;
+						currentEnemy.encirclingBehaviorEnabled = true;
+						currentEnemy.searchStateEnabled = true;
+					}
+					// no encircling behavior
+					else if (Input.GetKeyUp(KeyCode.Alpha2)) {
+						aiType = 2;
+						currentEnemy.flockingEnabled = true;
+						currentEnemy.encirclingBehaviorEnabled = false;
+						currentEnemy.searchStateEnabled = true;
+					}
+					// no encircling and no search behavior
+					else if (Input.GetKeyUp(KeyCode.Alpha3)) {
+						aiType = 3;
+						currentEnemy.flockingEnabled = true;
+						currentEnemy.encirclingBehaviorEnabled = false;
+						currentEnemy.searchStateEnabled = false;
+					}
+					// no encircling, no search, and no flocking
+					else if (Input.GetKeyUp(KeyCode.Alpha4)) {
+						aiType = 4;
+						currentEnemy.flockingEnabled = false;
+						currentEnemy.encirclingBehaviorEnabled = false;
+						currentEnemy.searchStateEnabled = false;
+					}
+					// no encircling, no search, no flocking, no senses (i.e. random behavior)
+					else if (Input.GetKeyUp(KeyCode.Alpha5)) {
+						aiType = 5;
+						currentEnemy.flockingEnabled = false;
+						currentEnemy.encirclingBehaviorEnabled = false;
+						currentEnemy.searchStateEnabled = false;
+						currentEnemy.playerInvisible = true;
+						currentEnemy.playerUnsmellable = true;
+					}
 					currentEnemy.enabled = true;
+				}
+			}
+			if (enemiesInitialized == false) {
+				createScorePowerup();
+				enemiesInitialized = true;
 			}
 		}
 
 		/*
-		Vector3 centroid = Vector3.zero;
-		Vector3 flockDirection = Vector3.zero;
-		foreach (GameObject enemy in enemies) {
-			centroid += enemy.transform.position;
-			flockDirection += enemy.GetComponent<EnemyScript>().direction;
-		}
-		centroid /= enemies.Count;
-		flockDirection.Normalize ();
-
-		foreach (GameObject enemy in enemies) {
-			float dist = Vector3.Distance(enemy.transform.position, centroid);
-			if (dist > boidCamDist)
-				boidCamDist = dist;
-		}
-
-		boidCam.transform.position = centroid - (flockDirection * boidCamDist * boidCamZoom);
-		boidCam.transform.LookAt (centroid);
-
-		if (Input.GetKey (KeyCode.B)) {
-			foreach (Camera cam in Camera.allCameras) {
-				cam.enabled = false;
-				if (cam.GetComponent<AudioListener>() != null)
-					cam.GetComponent<AudioListener>().enabled = false;
-			}
-			boidCam.enabled = true;
-		}
-
-
-		if (Input.GetKey (KeyCode.UpArrow))
-						boidCamZoom -= 0.1f;
-		if (Input.GetKey (KeyCode.DownArrow))
-						boidCamZoom += 0.1f;
-						
-		*/
-
 		// toggle asteroids on/off with M key
 		if (Input.GetKeyDown (KeyCode.M)) {
 			foreach (GameObject obj in asteroids) {
@@ -155,37 +185,49 @@ public class GameManagerScript : MonoBehaviour {
 					obj.SetActive(true);
 			}
 		}
-
-		/*
-		for (int i = 0; i < enemies.Count; i++) {
-			Debug.DrawLine(Player.transform.position, enemies[i].transform.position, Color.red);
-		}
 		*/
 
-		/*
-		foreach (GameObject enemy in enemies) {
-			EnemyScript currentEnemy = enemy.GetComponent<EnemyScript>();
-			if (currentEnemy.state != EnemyScript.WANDER) {
-				Debug.DrawLine(enemy.transform.position, currentEnemy.playerPosEstimate, Color.green);
-				Debug.DrawRay(enemy.transform.position, currentEnemy.alignmentVec, Color.red);
-			}
+		if (Input.GetKeyDown(KeyCode.R))
+			Application.LoadLevel(0);
+
+
+		// exit game on ESC
+		if (Input.GetKeyDown(KeyCode.Escape)) {
+			if (showWelcomeMsg == true)
+				showWelcomeMsg = false;
+			else
+				Application.Quit();
 		}
-		*/
 
 	}
 
 	void OnGUI() {
+		if (guiStyle == null) {
+			guiStyle = new GUIStyle(GUI.skin.box);
+			guiStyle.fontSize = 16;
+		}
 		if (Player) {
 			PlayerScript playerInfo = Player.GetComponent<PlayerScript> ();
+			string aiTypeStr = aiType.ToString();
+			if (aiType == 0)
+				aiTypeStr = "not set";
 			GUI.Box(infoBarRect,
-			        "Boost: " + (int)playerInfo.boostCharge + "   Health: " + (int)playerInfo.hitpoints);
+			        "AI type: " + aiTypeStr + "    Boost: " + (int)playerInfo.boostCharge + "   Health: " + (int)playerInfo.hitpoints + "   Score: " + score,  guiStyle);
 			float playerDistFromOrigin = Vector3.Distance(Vector3.zero, Player.transform.position);
 			float distToEdge = mapRadius - playerDistFromOrigin;
 			if (playerDistFromOrigin > warnRadius) {
 				GUI.Box(warningRect, "Approaching edge of game area (distance: " + (int)distToEdge
-				        + ")\nTurn back or you will take damage");
+				        + ")\nTurn back or you will take damage", guiStyle);
+			}
+			else if (!firstLoad && showLevelLoadMsg) {
+				GUI.Box(warningRect, "\nGame reset", guiStyle);
+			}
+			else if (showWelcomeMsg) {
+				GUI.Box(warningRect, "Read directions below, then press ESC to exit this message", guiStyle);
 			}
 		}
+		if (firstLoad == true)
+			firstLoad = false;
 	}
 
 	void spawnEnemyAt(Vector3 position) {
@@ -289,5 +331,36 @@ public class GameManagerScript : MonoBehaviour {
 			Destroy(uniqueAsteroids[i]);
 		}
 
+	}
+
+	void createScorePowerup() {
+		if (ScorePowerup)
+			Destroy(ScorePowerup);
+		float radius = creationRadius * 0.75f;
+
+		float f1, f2, f3;
+		f1 = Random.Range(-radius, radius);
+		f2 = Random.Range(-radius, radius);
+		f3 = Random.Range(-radius, radius);
+		Vector3 createPt = new Vector3(f1, f2, f3);
+
+		/*
+		Vector3 createPt = Vector3.zero;
+		foreach (GameObject enemy in enemies)
+			createPt += enemy.transform.position;
+		*/
+		createPt /= enemies.Count;
+		createPt = Vector3.ClampMagnitude (createPt, radius);
+		ScorePowerup = (GameObject)Instantiate (scorePowerupPrefab, createPt, Quaternion.identity);
+		ScorePowerup.renderer.material.color = powerupColor;
+	}
+
+	public void createScorePowerup_Delayed() {
+		CancelInvoke ("createScorePowerup");
+		Invoke ("createScorePowerup", 5);
+	}
+
+	void removeLevelLoadMessage() {
+		showLevelLoadMsg = false;
 	}
 }

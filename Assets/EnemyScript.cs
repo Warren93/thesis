@@ -24,8 +24,8 @@ public class EnemyScript : MonoBehaviour {
 	//float energyRegenRate = 5;
 	float energyRegenRate = 20;
 
-	//float sightRange = 100.0f;
-	float sightRange = 150.0f;
+	float sightRange = 100.0f;
+	//float sightRange = 150.0f;
 	float fov = 45.0f; // half of FOV, actually
 	float smellRange;
 
@@ -70,8 +70,11 @@ public class EnemyScript : MonoBehaviour {
 	public Vector3 playerPosEstimate; // estimate of where the player currently is (useful if player not in sight)
 
 	bool omniscient;
-	bool playerInvisible;
-	bool flocking = true;
+	public bool playerInvisible = false;
+	public bool playerUnsmellable = false;
+	public bool flockingEnabled = true;
+	public bool encirclingBehaviorEnabled = true;
+	public bool searchStateEnabled = true;
 	GameObject player;
 
 	public Vector3 obstacleVec;
@@ -104,7 +107,6 @@ public class EnemyScript : MonoBehaviour {
 
 		player = GameObject.FindGameObjectWithTag ("Player");
 		omniscient = false;
-		playerInvisible = false;
 
 		trail = GetComponent<TrailRenderer> ();
 
@@ -112,9 +114,8 @@ public class EnemyScript : MonoBehaviour {
 		//avoidanceRange = gameObject.GetComponent<SphereCollider>().bounds.extents.magnitude * 3;
 		agentAvoidanceRange = obstacleAvoidanceRange * 0.7f;
 		//closeInDist = obstacleAvoidanceRange * 8;
-		//closeInDist = 15;
-		closeInDist = 30;
-		//closeInDist = 50;
+		closeInDist = 15;
+		//closeInDist = 30;
 		setCohesionRangeShort ();
 
 		lastKnownPlayerPos = destination;
@@ -125,8 +126,8 @@ public class EnemyScript : MonoBehaviour {
 		state = WANDER;
 		changeColorBasedOnState ();
 		playerInSight = false;
-		InvokeRepeating ("changeDestination", 5, 5);
-		if (flocking) {
+		InvokeRepeating ("changeDestination", Random.Range (neighborRefreshRate + 0.1f, neighborRefreshRate + 0.3f), 5);
+		if (flockingEnabled) {
 			InvokeRepeating ("getNeighbors", Random.Range (0, neighborRefreshRate), neighborRefreshRate);
 			InvokeRepeating ("checkNeighborFoundPlayer", Random.Range (0, neighborCheckTargetRate), neighborCheckTargetRate);
 		}
@@ -196,7 +197,7 @@ public class EnemyScript : MonoBehaviour {
 		alignmentVec = getAlignmentVec ();
 
 		standoffVec = Vector3.zero;
-		if (flocking && neighbors.Count > 0)
+		if (flockingEnabled && neighbors.Count > 0)
 			standoffVec = getStandoffVec ();
 
 		newDirection += obstacleVec;
@@ -212,7 +213,7 @@ public class EnemyScript : MonoBehaviour {
 
 		float speed = defaultSpeed;
 
-		if (!flocking)
+		if (!flockingEnabled)
 			newDirection = directVectorToDest;
 
 		if (direction.magnitude > 0)
@@ -229,7 +230,7 @@ public class EnemyScript : MonoBehaviour {
 		if (newPos.magnitude > maxSpeed)
 			newPos = Vector3.ClampMagnitude (newPos, maxSpeed);
 
-		//if (closeToPlayer() && flocking)
+		//if (closeToPlayer() && flockingEnabled)
 		//	newPos = Vector3.ClampMagnitude(newPos, lastKnownPlayerVelocity.magnitude * 1.2f);
 
 		rigidbody.MovePosition (transform.position + (newPos * Time.deltaTime));
@@ -290,29 +291,13 @@ public class EnemyScript : MonoBehaviour {
 		}
 		else if (state == PURSUE) {
 			//Debug.DrawLine(transform.position, playerPosEstimate, Color.yellow);
-			cohesionWeight = 0.2f;
+			cohesionWeight = defaultCohesionWeight * 0.2f;
 			destinationWeight = 10f;
 			alignmentWeight = defaultAlignmentWeight * 0.2f;
 			destination = playerPosEstimate;
 			// if close to player, change paramters for surrounding player
-			if (closeToPlayer()) {
-				cohesionWeight = 0;
-				destinationWeight = 1f;
-				standoffWeight = 1f;
-				alignmentWeight = 0;
-				agentAvoidanceWeight = defaultAgentAvoidanceWeight * 8f;
-				// find how many neighbors have surrounded the player
-				int numNeighborsInPosition = 0;
-				foreach (GameObject neighbor in neighbors)
-					if (Vector3.Distance(neighbor.transform.position, player.transform.position) <= closeInDist * 1.2f)
-						numNeighborsInPosition++;
-				// if 75% of the neighbors have surrounded the player, go in for the kill
-				if ((float)numNeighborsInPosition / neighbors.Count >= 0.75 || (neighbors.Count  <= 0)) {
-					destinationWeight = 10;
-					//Debug.DrawLine(transform.position, player.transform.position, Color.white);
-				}
-				if (!flocking)
-					setDefaultWeights();
+			if (flockingEnabled && encirclingBehaviorEnabled && closeToPlayer()) {
+				closeIn();
 			}
 			// if can't see player anymore, begin searching
 			if (!playerInSight)
@@ -332,13 +317,32 @@ public class EnemyScript : MonoBehaviour {
 
 	}
 
+	void closeIn() {
+		cohesionWeight = 0;
+		destinationWeight = 1f;
+		standoffWeight = 1f;
+		alignmentWeight = 0;
+		agentAvoidanceWeight = defaultAgentAvoidanceWeight * 8f;
+		// find how many neighbors have surrounded the player
+		int numNeighborsInPosition = 0;
+		foreach (GameObject neighbor in neighbors)
+			if (Vector3.Distance(neighbor.transform.position, player.transform.position) <= closeInDist * 1.2f)
+				numNeighborsInPosition++;
+		// if 75% of the neighbors have surrounded the player, go in for the kill
+		if ((float)numNeighborsInPosition / neighbors.Count >= 0.75 || (neighbors.Count  <= 0)) {
+			destinationWeight = 10;
+			//Debug.DrawLine(transform.position, player.transform.position, Color.white);
+		}
+		if (!flockingEnabled)
+			setDefaultWeights();
+	}
+	
 	void changeStateTo(int newState) {
 		if (state == newState)
 			return;
 
-		// DEBUG SEARCH STATE
-		//if (newState == SEARCH)
-		//	newState = WANDER;
+		if (!searchStateEnabled && newState == SEARCH)
+			newState = WANDER;
 
 		if (state == SEARCH && newState != SEARCH) {
 			CancelInvoke("finishSearching");
@@ -360,7 +364,7 @@ public class EnemyScript : MonoBehaviour {
 	void spreadOut() {
 		setCohesionRangeShort ();
 		cohesionRange *= 1.5f; // not long but not too short
-		agentAvoidanceRange = cohesionRange * 0.3f;
+		agentAvoidanceRange = cohesionRange * 0.8f; // was x 0.3f
 		agentAvoidanceWeight = defaultAgentAvoidanceWeight * 1.8f;
 
 		cohesionWeight = 0;
@@ -483,7 +487,7 @@ public class EnemyScript : MonoBehaviour {
 		Collider[] cols = Physics.OverlapSphere(transform.position, obstacleAvoidanceRange);
 		Vector3 avoidanceVec = Vector3.zero;
 		foreach (Collider col in cols) {
-			if (col.gameObject.tag == "Obstacle") {
+			if (col.gameObject.tag == "Obstacle" || col.gameObject.tag == "Score Powerup") {
 				Vector3 vecFromObj = transform.position - col.gameObject.transform.position;
 				float range = vecFromObj.magnitude;
 				vecFromObj.Normalize();
@@ -560,7 +564,7 @@ public class EnemyScript : MonoBehaviour {
 	}
 
 	float smellCheck() {
-		if (!player)
+		if (!player || playerUnsmellable)
 			return 0;
 		float rangeToPlayer = Vector3.Distance (transform.position, player.transform.position);
 		if (rangeToPlayer <= smellRange)
