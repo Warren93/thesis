@@ -8,6 +8,8 @@ public class PlayerScript : MonoBehaviour {
 	bool invincible = false;
 	public float hitpoints;
 
+	bool canIncrementScore = true;
+
 	Vector3 prevDirection;
 	Camera mouseLookCam;
 	Camera mainCam;
@@ -22,7 +24,7 @@ public class PlayerScript : MonoBehaviour {
 	public float sidewaysSpeed;
 
 	public float boostCharge;
-	float boostDecrement = 21f; // was 17
+	float boostDecrement = 16; // was 17, then 21, then 18
 	//float boostDecrement = 0.0f;
 	float boostIncrement;
 
@@ -45,7 +47,7 @@ public class PlayerScript : MonoBehaviour {
 		hitpoints = 100.0f;
 		boostCharge = 100.0f;
 
-		boostIncrement = boostDecrement * 0.7f;
+		boostIncrement = boostDecrement * 1; // was * 0.7, then 0.85, then 1.2
 
 		mouseLookY_Rotation = 0;
 		mouseLookX_Rotation = 0;
@@ -123,7 +125,7 @@ public class PlayerScript : MonoBehaviour {
 
 		// accelerate (use boost)
 		if (Input.GetKey (KeyCode.LeftShift) && boostCharge > 0) {
-			forwardSpeed = defaultForwardSpeed * 2.25f;
+			forwardSpeed = defaultForwardSpeed * 2.65f; // was 2.25, then 2.5
 			boostCharge -= boostDecrement * Time.deltaTime;
 		}
 		// decelerate
@@ -233,12 +235,20 @@ public class PlayerScript : MonoBehaviour {
 
 	void OnTriggerEnter(Collider other) {
 		if (other.collider.tag == "Score Powerup") {
-			GameManagerScript.score += 1;
+			if (canIncrementScore) {
+				GameManagerScript.score += 1;
+				canIncrementScore = false;
+				Invoke("allowScoreIncrement", 0.1f);
+			}
 			Destroy(other.collider.gameObject);
 			gameManagerRef.GetComponent<GameManagerScript>().createScorePowerup_Delayed();
 		}
 	}
-	
+
+	void allowScoreIncrement() {
+		canIncrementScore = true;
+	}
+
 	void checkDead() {
 		if (hitpoints <= 0)
 			resetGame ();

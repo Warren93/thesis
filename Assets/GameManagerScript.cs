@@ -13,7 +13,7 @@ public class GameManagerScript : MonoBehaviour {
 
 	List<GameObject> asteroids;
 	List<GameObject> uniqueAsteroids;
-	List<GameObject> enemies;
+	public static List<GameObject> enemies;
 	bool enemiesInitialized = false;
 
 	Rect infoBarRect;
@@ -29,14 +29,15 @@ public class GameManagerScript : MonoBehaviour {
 	public static float warnRadius;
 
 	int numUniqueObstacles = 10;
-	int numObstacles = 800;
+	int numObstacles = 800; // was 800, then 700
+	int numLargeObstacles = 75; // was 50
 	//int numObstacles = 0;
 	int numEnemies = 50;
 	//int numEnemies = 1;
 
 	float globalLowerBound = 2;
-	float globalUpperBound = 55; // prev 35
-	float globalBoundRatio = 0.75f;
+	float globalUpperBound = 55; // was 55
+	float globalBoundRatio = 0.75f; // was 0.75
 
 	/*
 	float boidCamDist = 0;
@@ -50,7 +51,9 @@ public class GameManagerScript : MonoBehaviour {
 	void Start () {
 
 		Application.targetFrameRate = 60;
-		QualitySettings.antiAliasing = 4;
+
+		if(Application.platform != RuntimePlatform.OSXWebPlayer && Application.platform != RuntimePlatform.WindowsWebPlayer)
+			QualitySettings.antiAliasing = 4;
 
 		//guiStyle = new GUIStyle();
 
@@ -62,8 +65,8 @@ public class GameManagerScript : MonoBehaviour {
 		warningRect = new Rect (0, 0, Screen.width * 0.6f, 50);
 		warningRect.center = new Vector2 (Screen.width * 0.5f, Screen.height * 0.5f);
 
-		creationRadius = 800.0f;
-		mapRadius = creationRadius * 0.9f;
+		creationRadius = 1000.0f; // was 800
+		mapRadius = creationRadius * 1.2f; // was 0.9
 		warnRadius = mapRadius - 120;
 
 
@@ -77,7 +80,10 @@ public class GameManagerScript : MonoBehaviour {
 
 		asteroids = new List<GameObject> ();
 		uniqueAsteroids = new List<GameObject> ();
-		enemies = new List<GameObject>();
+		if (enemies != null)
+			enemies.Clear();
+		else
+			enemies = new List<GameObject>();
 		Player = GameObject.FindGameObjectWithTag ("Player");
 
 		// create enemy
@@ -103,7 +109,9 @@ public class GameManagerScript : MonoBehaviour {
 
 		Screen.showCursor = false;
 
-		createAsteroids ();
+		createUniqueAsteroids (); // the asteroids from which all others will be duplicated
+		createAsteroids (numObstacles, Random.Range(1.0f, 1.2f));
+		createAsteroids (numLargeObstacles, Random.Range(3.0f, 5.0f));
 
 		if (firstLoad)
 			showLevelLoadMsg = false;
@@ -125,47 +133,12 @@ public class GameManagerScript : MonoBehaviour {
 			playerInfo.hitpoints -= 60 * Time.deltaTime;
 		}
 
-		if (Input.GetKeyUp(KeyCode.Alpha1) || Input.GetKeyUp(KeyCode.Alpha2) || Input.GetKeyUp(KeyCode.Alpha3) || Input.GetKeyUp(KeyCode.Alpha4) || Input.GetKeyUp(KeyCode.Alpha5)) {
+		if (Input.GetKeyUp(KeyCode.Alpha1) || Input.GetKeyUp(KeyCode.Alpha2) || Input.GetKeyUp(KeyCode.Alpha3)
+		    || Input.GetKeyUp(KeyCode.Alpha4) || Input.GetKeyUp(KeyCode.Alpha5) || Input.GetKeyUp(KeyCode.Alpha6)) {
 			foreach (GameObject enemy in enemies) {
 				EnemyScript currentEnemy = enemy.GetComponent<EnemyScript>();
 				if (currentEnemy.enabled == false) {
-					// all AI behaviors enabled
-					if (Input.GetKeyUp(KeyCode.Alpha1)) {
-						aiType = 1;
-						currentEnemy.flockingEnabled = true;
-						currentEnemy.encirclingBehaviorEnabled = true;
-						currentEnemy.searchStateEnabled = true;
-					}
-					// no encircling behavior
-					else if (Input.GetKeyUp(KeyCode.Alpha2)) {
-						aiType = 2;
-						currentEnemy.flockingEnabled = true;
-						currentEnemy.encirclingBehaviorEnabled = false;
-						currentEnemy.searchStateEnabled = true;
-					}
-					// no encircling and no search behavior
-					else if (Input.GetKeyUp(KeyCode.Alpha3)) {
-						aiType = 3;
-						currentEnemy.flockingEnabled = true;
-						currentEnemy.encirclingBehaviorEnabled = false;
-						currentEnemy.searchStateEnabled = false;
-					}
-					// no encircling, no search, and no flocking
-					else if (Input.GetKeyUp(KeyCode.Alpha4)) {
-						aiType = 4;
-						currentEnemy.flockingEnabled = false;
-						currentEnemy.encirclingBehaviorEnabled = false;
-						currentEnemy.searchStateEnabled = false;
-					}
-					// no encircling, no search, no flocking, no senses (i.e. random behavior)
-					else if (Input.GetKeyUp(KeyCode.Alpha5)) {
-						aiType = 5;
-						currentEnemy.flockingEnabled = false;
-						currentEnemy.encirclingBehaviorEnabled = false;
-						currentEnemy.searchStateEnabled = false;
-						currentEnemy.playerInvisible = true;
-						currentEnemy.playerUnsmellable = true;
-					}
+					setAI_Type(currentEnemy);
 					currentEnemy.enabled = true;
 				}
 			}
@@ -193,12 +166,83 @@ public class GameManagerScript : MonoBehaviour {
 
 		// exit game on ESC
 		if (Input.GetKeyDown(KeyCode.Escape)) {
-			if (showWelcomeMsg == true)
+			if (showWelcomeMsg == true) {
 				showWelcomeMsg = false;
+				//Screen.lockCursor = true;
+			}
 			else
 				Application.Quit();
 		}
 
+	}
+
+	void setAI_Type(EnemyScript currentEnemy) {
+		// disable senses
+		currentEnemy.playerInvisible = true;
+		currentEnemy.playerUnsmellable = true;
+		// disable behaviors
+		currentEnemy.encirclingBehaviorEnabled = false;
+		currentEnemy.searchStateEnabled = false;
+		// disable energy consumption
+		currentEnemy.energyConsumptionEnabled = false;
+		// enable basic behavior
+		currentEnemy.proximityCheck = true;
+		currentEnemy.flockingEnabled = true;
+
+		// renable featuers based on selected AI type
+
+		// enable search
+		if (Input.GetKeyUp(KeyCode.Alpha1)) {
+			aiType = 1;
+			currentEnemy.searchStateEnabled = true;
+		}
+		// enable senses
+		else if (Input.GetKeyUp(KeyCode.Alpha2)) {
+			aiType = 2;
+			currentEnemy.playerInvisible = false;
+			currentEnemy.playerUnsmellable = false;
+			// disable the simplified system that's used in the absence of senses
+			currentEnemy.proximityCheck = false;
+		}
+		// enable energy consumption
+		else if (Input.GetKeyUp(KeyCode.Alpha3)) {
+			aiType = 3;
+			currentEnemy.energyConsumptionEnabled = true;
+		}
+		// enable search and senses
+		else if (Input.GetKeyUp(KeyCode.Alpha4)) {
+			aiType = 4;
+			currentEnemy.searchStateEnabled = true;
+			currentEnemy.playerInvisible = false;
+			currentEnemy.playerUnsmellable = false;
+			currentEnemy.proximityCheck = false;
+		}
+		// enable search, senses, and energy
+		else if (Input.GetKeyUp(KeyCode.Alpha5)) {
+			aiType = 5;
+			// search
+			currentEnemy.searchStateEnabled = true;
+			// senses
+			currentEnemy.playerInvisible = false;
+			currentEnemy.playerUnsmellable = false;
+			currentEnemy.proximityCheck = false;
+			// energy
+			currentEnemy.energyConsumptionEnabled = true;
+		}
+		// enable earch, senses, energy, and encircling (i.e. enable everything)
+		else if (Input.GetKeyUp(KeyCode.Alpha6)) {
+			aiType = 6;
+			// search
+			currentEnemy.searchStateEnabled = true;
+			// senses
+			currentEnemy.playerInvisible = false;
+			currentEnemy.playerUnsmellable = false;
+			currentEnemy.proximityCheck = false;
+			// energy
+			currentEnemy.energyConsumptionEnabled = true;
+			// encircling
+			currentEnemy.encirclingBehaviorEnabled = true;
+		}
 	}
 
 	void OnGUI() {
@@ -239,10 +283,42 @@ public class GameManagerScript : MonoBehaviour {
 		enemy.GetComponent<EnemyScript> ().gameManger = gameObject;
 	}
 
-	void createAsteroids() {
+	void createAsteroids(int numToCreate, float scaleFactor) {
+		for (int i = 0; i < numToCreate; i++) {
+			float f1, f2, f3;
+			/*
+			f1 = Random.Range(-10, 10);
+			f2 = Random.Range(-10, 10);
+			f3 = Random.Range(-10, 10);
+			Vector3 createPt = new Vector3(f1, f2, f3);
+			createPt.Normalize();
+			createPt *= Random.Range(20, creationRadius);
+			*/
+			f1 = Random.Range(-creationRadius, creationRadius);
+			f2 = Random.Range(-creationRadius, creationRadius);
+			f3 = Random.Range(-creationRadius, creationRadius);
+			Vector3 createPt = new Vector3(f1, f2, f3);
+			int idx = Random.Range(0, numUniqueObstacles - 1);
+			GameObject obstacle = (GameObject) Instantiate(uniqueAsteroids[idx]);
+			obstacle.transform.localScale *= scaleFactor;
+			obstacle.transform.position = createPt;
+			obstacle.isStatic = true;
+			obstacle.tag = "Obstacle";
+
+			asteroids.Add(obstacle);
+
+		}
+
+		for (int i = 0; i < uniqueAsteroids.Count; i++) {
+			Destroy(uniqueAsteroids[i]);
+		}
+
+	}
+
+	void createUniqueAsteroids() {
 		for (int i = 0; i < numUniqueObstacles; i++) {
 			GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-
+			
 			float upperBound = Random.Range(globalLowerBound, globalUpperBound);
 			float lowerBound = upperBound * globalBoundRatio;
 			
@@ -283,7 +359,8 @@ public class GameManagerScript : MonoBehaviour {
 					verts[j] = newVertexValue;
 				}
 			}
-			
+
+			/*
 			float newRadius = 0;
 			for (int j = 0; j < verts.Length; j++) {
 				float currentVertDist = Vector3.Distance(verts[j], avgVertPos);
@@ -291,7 +368,20 @@ public class GameManagerScript : MonoBehaviour {
 					newRadius = currentVertDist;
 			}
 			float scaleFactor = newRadius / originalRadius;
-			
+			*/
+
+			float maxRadius = Vector3.Distance(verts[0], avgVertPos);
+			float minRadius = maxRadius;
+			for (int j = 0; j < verts.Length; j++) {
+				float currentVertDist = Vector3.Distance(verts[j], avgVertPos);
+				if (currentVertDist > maxRadius)
+					maxRadius = currentVertDist;
+				if (currentVertDist < minRadius)
+					minRadius = currentVertDist;
+			}
+			float avgRadius = (maxRadius + minRadius) * 0.5f;
+			float scaleFactor = avgRadius / originalRadius;
+
 			SphereCollider col = sphere.transform.GetComponent<SphereCollider>();
 			col.radius *= scaleFactor;
 			
@@ -299,38 +389,9 @@ public class GameManagerScript : MonoBehaviour {
 			sphereMesh.RecalculateNormals();
 			sphereMesh.RecalculateBounds();
 			uniqueVerts.Clear();
-
+			
 			uniqueAsteroids.Add(sphere);
 		}
-
-		for (int i = 0; i < numObstacles; i++) {
-			float f1, f2, f3;
-			/*
-			f1 = Random.Range(-10, 10);
-			f2 = Random.Range(-10, 10);
-			f3 = Random.Range(-10, 10);
-			Vector3 createPt = new Vector3(f1, f2, f3);
-			createPt.Normalize();
-			createPt *= Random.Range(20, creationRadius);
-			*/
-			f1 = Random.Range(-creationRadius, creationRadius);
-			f2 = Random.Range(-creationRadius, creationRadius);
-			f3 = Random.Range(-creationRadius, creationRadius);
-			Vector3 createPt = new Vector3(f1, f2, f3);
-			int idx = Random.Range(0, numUniqueObstacles - 1);
-			GameObject obstacle = (GameObject) Instantiate(uniqueAsteroids[idx]);
-			obstacle.transform.position = createPt;
-			obstacle.isStatic = true;
-			obstacle.tag = "Obstacle";
-
-			asteroids.Add(obstacle);
-
-		}
-
-		for (int i = 0; i < uniqueAsteroids.Count; i++) {
-			Destroy(uniqueAsteroids[i]);
-		}
-
 	}
 
 	void createScorePowerup() {
