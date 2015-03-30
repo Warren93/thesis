@@ -24,7 +24,7 @@ public class PlayerScript : MonoBehaviour {
 	public float sidewaysSpeed;
 
 	public float boostCharge;
-	float boostDecrement = 16; // was 17, then 21, then 18
+	float boostDecrement = 22; // was 17, then 21, then 18
 	//float boostDecrement = 0.0f;
 	float boostIncrement;
 

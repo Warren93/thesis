@@ -22,6 +22,7 @@ public class EnemyScript : MonoBehaviour {
 	//float speedScaleFac = 0.15f;
 	float energyLevel = 100;
 	float energyRegenRate = 2.5f; // was 5, then 20
+	float exhaustionTurnPenaltyCutoff = 50;
 
 	float sightRange = 100.0f;
 	//float sightRange = 150.0f;
@@ -42,7 +43,7 @@ public class EnemyScript : MonoBehaviour {
 	float neighborCheckTargetRate = 3.5f; //2.5f; //1.5f; // frequency in seconds that this agent
 												// checks if any neighbor has found the player
 
-	float defaultObstacleAvoidanceWeight = 65f; // was 20, then 35
+	float defaultObstacleAvoidanceWeight = 200f; // was 20, then 35, then 65
 	float defaultAgentAvoidanceRange;
 	float defaultAgentAvoidanceWeight = 1.5f;
 	float defaultCohesionWeight = 6.0f;
@@ -90,6 +91,9 @@ public class EnemyScript : MonoBehaviour {
 
 	float turnAngle;
 	bool checkTurnAngleThisFrame = false;
+	float turnAngleCheckRate = 0.1f;
+	Vector3 directionLastTurnCheck;
+	bool tempPreventEnergyDrain = false;
 
 	TrailRenderer trail;
 
@@ -112,6 +116,7 @@ public class EnemyScript : MonoBehaviour {
 		closeNeighbors = new List<GameObject> ();
 
 		direction = Vector3.forward;
+		directionLastTurnCheck = direction;
 		destination = Vector3.forward * 1000;
 		facingDirection = direction;
 
@@ -135,10 +140,10 @@ public class EnemyScript : MonoBehaviour {
 		playerInSight = false;
 		InvokeRepeating ("changeDestination", Random.Range (neighborRefreshRate + 0.1f, neighborRefreshRate + 0.3f), 5);
 		if (flockingEnabled) {
-			InvokeRepeating ("getNeighbors", Random.Range (0, neighborRefreshRate), neighborRefreshRate);
-			InvokeRepeating ("checkNeighborFoundPlayer", Random.Range (0, neighborCheckTargetRate), neighborCheckTargetRate);
+			InvokeRepeating ("getNeighbors", Random.Range (0.01f, neighborRefreshRate), neighborRefreshRate);
+			InvokeRepeating ("checkNeighborFoundPlayer", Random.Range (0.01f, neighborCheckTargetRate), neighborCheckTargetRate);
 		}
-		InvokeRepeating ("allowCheckTurnAngle", 0.1f, 0.1f);
+		InvokeRepeating ("allowCheckTurnAngle", turnAngleCheckRate, turnAngleCheckRate);
 	}
 	
 	// Update is called once per frame
@@ -238,10 +243,19 @@ public class EnemyScript : MonoBehaviour {
 
 		direction.Normalize ();
 
+		// EXHAUSTION PENALTY FOR TURNING
+		if (energyLevel < exhaustionTurnPenaltyCutoff) {
+			float originalMag = newDirection.magnitude;
+			newDirection = Vector3.Slerp(direction, newDirection, energyLevel / exhaustionTurnPenaltyCutoff).normalized * originalMag;
+		}
+
 		if (checkTurnAngleThisFrame)
-			turnAngle = Vector3.Angle (direction, newDirection);
+			turnAngle = Vector3.Angle(directionLastTurnCheck, newDirection);
 
 		direction += newDirection * speedScaleFac;
+
+		if (checkTurnAngleThisFrame)
+			directionLastTurnCheck = newDirection.normalized;
 
 		Vector3 newPos = direction * speed * (energyLevel / 100.0f);
 
@@ -251,11 +265,10 @@ public class EnemyScript : MonoBehaviour {
 		if (newPos.magnitude > maxSpeed)
 			newPos = Vector3.ClampMagnitude (newPos, maxSpeed);
 
-
 		if (GameManagerScript.enemies.Count <= 3) {
 			Debug.DrawLine (transform.position, player.transform.position, Color.magenta);
 			Debug.DrawRay (transform.position, newDirection * 10, Color.cyan);
-			if (state != WANDER) {
+			if (/*state != WANDER*/true) {
 				Debug.Log ("new direction magnitude: " + newDirection.magnitude
 				           + ", energy level is " + energyLevel + " and speed is " + newPos.magnitude
 				           + ", turn angle is " + turnAngle);
@@ -273,8 +286,14 @@ public class EnemyScript : MonoBehaviour {
 			facingDirection = direction;
 		}
 		else {
-			facingDirection = destination - transform.position;
-			facingDirection.Normalize ();
+			if (energyLevel > exhaustionTurnPenaltyCutoff) {
+				facingDirection = destination - transform.position;
+				facingDirection.Normalize ();
+			}
+			else {
+				Vector3 wanted = (destination - transform.position).normalized;
+				facingDirection = Vector3.Slerp(direction, wanted, energyLevel / exhaustionTurnPenaltyCutoff);
+			}
 		}
 
 		/*
@@ -293,7 +312,7 @@ public class EnemyScript : MonoBehaviour {
 		           + ", regen rate is " + energyRegenRate * Time.deltaTime + " per frame");
 		*/
 
-		if (energyConsumptionEnabled)
+		if (!tempPreventEnergyDrain && energyConsumptionEnabled)
 			adjustEnergyLevel (newPos.magnitude, turnAngle);
 
 		changeColorBasedOnState ();
@@ -403,10 +422,15 @@ public class EnemyScript : MonoBehaviour {
 		else if (state == WANDER && newState != WANDER)
 			CancelInvoke("changeDestination");
 
-		if (newState == WANDER)
+		if (newState == WANDER) {
 			InvokeRepeating ("changeDestination", 0.1f, 5);
-		else if (newState == PURSUE)
+		}
+		else if (newState == PURSUE) {
+			tempPreventEnergyDrain = true;
+			CancelInvoke("allowEnergyDrain");
+			Invoke("allowEnergyDrain", 0.5f);
 			destination = lastKnownPlayerPos;
+		}
 		else if (newState == SEARCH) {
 			Invoke("finishSearching", searchTime);
 		}
@@ -430,7 +454,7 @@ public class EnemyScript : MonoBehaviour {
 	}
 
 	void checkNeighborFoundPlayer() {
-		if (state == PURSUE)
+		if (state != WANDER)
 			return;
 		foreach (GameObject neighbor in neighbors) {
 			EnemyScript neighborSc = neighbor.GetComponent<EnemyScript>();
@@ -707,24 +731,31 @@ public class EnemyScript : MonoBehaviour {
 
 	void adjustEnergyLevel (float currentSpeed, float turnAngle) {
 		float speedPenalty = currentSpeed - defaultSpeed;
+		//float speedPenalty2 = currentSpeed - 40;
 		if (speedPenalty > 0 && energyLevel > 0) {
 			// decrement energy based on how much faster than normal (above default speed) we're going
-			energyLevel -= speedPenalty * 0.05f * Time.deltaTime; // was 0.05, then 0.6
+			energyLevel -= speedPenalty * 0.5f * Time.deltaTime; // was 0.05, then 0.5
 			// decrement energy based on turn angle
-			energyLevel -= turnAngle * speedPenalty * 0.03f * Time.deltaTime; // was * 0.2, then 0.1, then 0.05
-			//Debug.Log("turn angle was: " + turnAngle + ", turn energy penalty for this frame was: " + turnAngle * speedPenalty * 7 * Time.deltaTime);
-			//Debug.Log("overspeed amount was: " + speedPenalty + ", speed penalty was " + speedPenalty * Time.deltaTime);
+			//energyLevel -= turnAngle * speedPenalty * 10.0f * Time.deltaTime; // was * 0.2, then 0.1, then 0.05
 		}
 		else if (energyLevel < 100)
 			energyLevel += energyRegenRate * Time.deltaTime;
 
-		if (energyLevel < 0)
-			energyLevel = 0;
+		if (state == PURSUE)
+			energyLevel -= turnAngle * 0.4f * Time.deltaTime;
+
+		if (energyLevel < 5f)
+			energyLevel = 5f;
 
 		if (energyLevel > 100)
 			energyLevel = 100;
 
 		//Debug.Log ("ENERGY LEVEL: " + energyLevel);
+	}
+
+	void allowEnergyDrain() {
+		tempPreventEnergyDrain = false;
+		//Debug.LogWarning ("BUFF WEAROFF");
 	}
 
 	void changeColorBasedOnState() {
@@ -742,6 +773,11 @@ public class EnemyScript : MonoBehaviour {
 			//renderer.material.color *= 0.5f;
 			renderer.material.color = Color.blue;
 			//Debug.Log("EXHAUSTED");
+		}
+
+		if (energyLevel < 1) {
+			renderer.material.color = Color.cyan;
+			Debug.LogWarning("problem");
 		}
 
 		trail.material.color = renderer.material.color;
