@@ -399,8 +399,8 @@ public class EnemyScript : MonoBehaviour {
 		foreach (GameObject neighbor in neighbors)
 			if (Vector3.Distance(neighbor.transform.position, player.transform.position) <= closeInDist * 1.2f)
 				numNeighborsInPosition++;
-		// if 90% of the neighbors have surrounded the player, go in for the kill
-		if ((float)numNeighborsInPosition / neighbors.Count >= 0.9 || (neighbors.Count  <= 0)) {
+		// if 75% of the neighbors have surrounded the player, go in for the kill
+		if ((float)numNeighborsInPosition / neighbors.Count >= 0.75 || (neighbors.Count  <= 0)) {
 			destinationWeight = 2; // was 10
 			//Debug.DrawLine(transform.position, player.transform.position, Color.white);
 		}
